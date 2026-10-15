@@ -62,28 +62,55 @@
 
 @push('scripts')
 <script>
-    // Poll setiap 2 detik — kalau state berubah, redirect ke halaman game
+    // Poll setiap 1.2 detik — kalau state berubah, redirect ke halaman game
     const pollUrl = "{{ route('student.room.state', $room) }}";
     const gameUrl = "{{ route('student.room', $room) }}";
-    let interval;
+    let interval = null;
+    let isTransitioning = false;
 
     async function pollState() {
+        if (isTransitioning) return;
         try {
-            // Tambahkan cache-buster (?t=...) agar browser tidak menggunakan cache
-            const res = await fetch(pollUrl + "?t=" + Date.now(), {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            // Tambahkan cache-buster (?t=...) dan cache: 'no-store' agar browser selalu mendapatkan status terbaru
+            const res = await fetch(pollUrl + (pollUrl.includes('?') ? '&' : '?') + "t=" + Date.now(), {
+                cache: 'no-store',
+                headers: { 
+                    'Accept': 'application/json', 
+                    'X-Requested-With': 'XMLHttpRequest' 
+                },
+                credentials: 'same-origin'
             });
+
+            if (!res.ok) return;
+
             const data = await res.json();
-            if (data.status === 'playing' || data.status === 'finished') {
-                window.location.href = gameUrl;
+            if (data && (data.status === 'playing' || data.status === 'finished')) {
+                isTransitioning = true;
+                stopPolling();
+
+                // Beri indikator visual seketika pada layar siswa
+                const titleEl = document.querySelector('h1');
+                if (titleEl) {
+                    titleEl.textContent = '🚀 Game Dimulai!';
+                }
+                const subEl = document.querySelector('p.font-body');
+                if (subEl) {
+                    subEl.textContent = 'Menyiapkan arena kuis...';
+                }
+
+                // Paksa browser berpindah halaman ke tampilan game dengan parameter unik
+                const redirectTarget = gameUrl + (gameUrl.includes('?') ? '&' : '?') + 'play=' + Date.now();
+                window.location.replace(redirectTarget);
             }
-        } catch (e) { /* silent */ }
+        } catch (e) {
+            console.error('Polling error:', e);
+        }
     }
 
     function startPolling() {
-        if (!interval) {
+        if (!interval && !isTransitioning) {
             pollState();
-            interval = setInterval(pollState, 2000);
+            interval = setInterval(pollState, 1200);
         }
     }
 

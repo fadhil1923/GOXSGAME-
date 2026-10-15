@@ -122,11 +122,15 @@ class RoomController extends Controller
 
         // Kalau game belum dimulai → halaman waiting
         if (! $room->session || $room->session->status === 'waiting') {
-            return view('student.waiting', compact('room'));
+            return response()
+                ->view('student.waiting', compact('room'))
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         }
 
         // Game sedang berjalan → halaman game
-        return view('student.game', compact('room'));
+        return response()
+            ->view('student.game', compact('room'))
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     /**
@@ -208,7 +212,7 @@ class RoomController extends Controller
                 'is_correct' => $myAnswer->is_correct,
                 'score_earned' => $myAnswer->score_earned,
             ] : null,
-        ]);
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     /**
