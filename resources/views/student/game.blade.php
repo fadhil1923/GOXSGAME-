@@ -377,6 +377,10 @@ function startTimer(remaining, limit) {
                 disableOptions(null, null);
                 showFeedback(false, 0, null, true);
             }
+            // Otomatis minta state baru dari server agar langsung berpindah ke soal berikutnya
+            setTimeout(() => {
+                fetchState();
+            }, 600);
         }
     }
     tick();

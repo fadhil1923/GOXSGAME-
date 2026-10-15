@@ -156,6 +156,15 @@ class RoomController extends Controller
             return ['status' => 'finished'];
         }
 
+        // Otomatis berpindah ke soal berikutnya jika waktu soal sudah habis
+        if ($session->checkAndAutoAdvance()) {
+            $room->load('session');
+            $session = $room->session;
+            if ($session->isFinished()) {
+                return ['status' => 'finished'];
+            }
+        }
+
         $questions = $room->game->questions()->orderBy('order')->get()->values();
         $currentIndex = (int) ($session->current_question_index ?? 0);
         $currentQuestion = $questions->get($currentIndex);

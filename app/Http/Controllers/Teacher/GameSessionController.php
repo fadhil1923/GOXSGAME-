@@ -23,6 +23,10 @@ class GameSessionController extends Controller
 
         $room->load('game.questions.options', 'students', 'session');
 
+        if ($room->session?->checkAndAutoAdvance()) {
+            $room->load('session');
+        }
+
         return view('teacher.rooms.lobby', compact('room'));
     }
 
@@ -82,26 +86,7 @@ class GameSessionController extends Controller
                 ->with('info', 'Game belum berjalan atau sudah selesai.');
         }
 
-        $questions = $room->game->questions()->orderBy('order')->get()->values();
-        $totalQuestions = $questions->count();
-        $nextIndex = (int) $session->current_question_index + 1;
-
-        if ($nextIndex >= $totalQuestions || ! $questions->has($nextIndex)) {
-            // Tidak ada soal berikutnya → selesaikan game
-            $session->update(['status' => 'finished']);
-
-            return redirect()->route('teacher.rooms.lobby', $room)
-                ->with('success', 'Game selesai! Leaderboard siap.');
-        }
-
-        $nextQuestion = $questions->get($nextIndex);
-        $timeLimit = $room->custom_time_per_question ?? ($nextQuestion?->time_limit_seconds ?? 30);
-
-        $session->update([
-            'current_question_index' => $nextIndex,
-            'question_started_at' => Carbon::now(),
-            'current_time_limit' => $timeLimit,
-        ]);
+        $session->advanceQuestion();
 
         return redirect()->route('teacher.rooms.lobby', $room);
     }
@@ -176,10 +161,16 @@ class GameSessionController extends Controller
 
         $room->load('session');
         if (! $room->session) {
-            return response()->json(['leaderboard' => []]);
+            return response()->json(['leaderboard' => [], 'status' => 'waiting']);
         }
 
-        $leaderboard = StudentAnswer::where('room_session_id', $room->session->id)
+        if ($room->session->checkAndAutoAdvance()) {
+            $room->load('session');
+        }
+
+        $session = $room->session;
+
+        $leaderboard = StudentAnswer::where('room_session_id', $session->id)
             ->with('user')
             ->selectRaw('user_id, SUM(score_earned) as total_score, COUNT(*) as answered, SUM(is_correct) as correct')
             ->groupBy('user_id')
@@ -187,6 +178,8 @@ class GameSessionController extends Controller
             ->get();
 
         return response()->json([
+            'status' => $session->status,
+            'question_index' => $session->current_question_index,
             'leaderboard' => $leaderboard->map(fn ($row) => [
                 'id' => $row->user->id ?? 0,
                 'name' => $row->user->name ?? 'Unknown',

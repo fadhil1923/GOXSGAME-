@@ -191,4 +191,64 @@ class GameSessionTest extends TestCase
         $response->assertStatus(422);
         $this->assertDatabaseMissing('room_sessions', ['room_id' => $room->id]);
     }
+
+    #[Test]
+    public function question_automatically_advances_when_time_expires(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $student = User::factory()->create(['role' => 'student']);
+        $game = $this->makeGameWithQuestions(2);
+        $room = Room::factory()->create(['game_id' => $game->id, 'user_id' => $teacher->id]);
+        $room->students()->attach($student->id);
+
+        RoomSession::create([
+            'room_id' => $room->id,
+            'status' => 'playing',
+            'current_question_index' => 0,
+            'question_started_at' => Carbon::now()->subSeconds(35),
+            'current_time_limit' => 30,
+        ]);
+
+        $response = $this->actingAs($student)
+            ->getJson(route('student.room.state', $room));
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'playing')
+            ->assertJsonPath('question_index', 1);
+
+        $this->assertDatabaseHas('room_sessions', [
+            'room_id' => $room->id,
+            'current_question_index' => 1,
+            'status' => 'playing',
+        ]);
+    }
+
+    #[Test]
+    public function game_automatically_finishes_when_time_expires_on_last_question(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $student = User::factory()->create(['role' => 'student']);
+        $game = $this->makeGameWithQuestions(1);
+        $room = Room::factory()->create(['game_id' => $game->id, 'user_id' => $teacher->id]);
+        $room->students()->attach($student->id);
+
+        RoomSession::create([
+            'room_id' => $room->id,
+            'status' => 'playing',
+            'current_question_index' => 0,
+            'question_started_at' => Carbon::now()->subSeconds(35),
+            'current_time_limit' => 30,
+        ]);
+
+        $response = $this->actingAs($student)
+            ->getJson(route('student.room.state', $room));
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'finished');
+
+        $this->assertDatabaseHas('room_sessions', [
+            'room_id' => $room->id,
+            'status' => 'finished',
+        ]);
+    }
 }

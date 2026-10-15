@@ -338,6 +338,11 @@
             });
             const data = await res.json();
             
+            if (data.status === 'finished' || (data.question_index !== undefined && data.question_index !== {{ $currentIndex }})) {
+                window.location.reload();
+                return;
+            }
+
             if (data.leaderboard.length === 0) {
                 leaderboardEl.innerHTML = `
                     <div class="py-10 text-center">
@@ -389,6 +394,7 @@
     let timeLimit = {{ $session->current_time_limit ?? 30 }};
     let startedAt = {{ $session->question_started_at->timestamp }} * 1000;
     const timerEl = document.getElementById('teacher-timer');
+    let autoAdvanced = false;
 
     function updateTimer() {
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
@@ -396,6 +402,12 @@
         if (timerEl) timerEl.textContent = remaining + 's';
         if (remaining === 0) {
             if (timerEl) timerEl.classList.add('bg-[#FB7185]', 'text-black');
+            if (!autoAdvanced) {
+                autoAdvanced = true;
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+            }
         }
     }
     updateTimer();
