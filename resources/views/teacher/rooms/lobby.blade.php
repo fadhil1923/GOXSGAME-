@@ -90,9 +90,17 @@
         <div class="neo-box rounded-2xl bg-[#4ADE80] p-8 text-center flex flex-col items-center gap-4">
             <div class="text-6xl">🏆</div>
             <h3 class="font-display font-black text-2xl text-black">Game Selesai!</h3>
-            <a href="{{ route('teacher.rooms.results', $room) }}" class="neo-btn px-8 py-3 rounded-xl bg-[#FFE600] text-black font-display font-black text-base uppercase tracking-wider">
-                Lihat Leaderboard 🏆
-            </a>
+            <div class="flex flex-wrap items-center justify-center gap-3">
+                <a href="{{ route('teacher.rooms.results', $room) }}" class="neo-btn px-8 py-3 rounded-xl bg-[#FFE600] text-black font-display font-black text-base uppercase tracking-wider">
+                    Lihat Leaderboard 🏆
+                </a>
+                <form method="POST" action="{{ route('teacher.rooms.play', $room) }}">
+                    @csrf
+                    <button type="submit" class="neo-btn px-6 py-3 rounded-xl bg-white text-black font-display font-black text-base uppercase tracking-wider flex items-center gap-2">
+                        <span class="material-symbols-outlined">restart_alt</span> Main Lagi
+                    </button>
+                </form>
+            </div>
         </div>
         @endif
 

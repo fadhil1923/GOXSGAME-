@@ -259,21 +259,30 @@ class RoomController extends Controller
         $room->load('session');
         $session = $room->session;
 
-        abort_if(! $session || ! $session->isPlaying(), 422, 'Game belum berjalan.');
-        abort_if($session->timeRemaining() === 0, 422, 'Waktu habis!');
+        if (! $session || ! $session->isPlaying()) {
+            return response()->json(['error' => 'Game belum berjalan atau sudah selesai.'], 422);
+        }
+
+        if ($session->timeRemaining() === 0) {
+            return response()->json(['error' => 'Waktu habis!'], 422);
+        }
 
         // Pastikan option milik question yang aktif
         $questions = $room->game->questions()->orderBy('order')->get()->values();
         $currentQuestion = $questions->get($session->current_question_index);
 
-        abort_if(! $currentQuestion || $currentQuestion->id !== (int) $request->question_id, 422, 'Soal tidak sesuai.');
+        if (! $currentQuestion || $currentQuestion->id !== (int) $request->question_id) {
+            return response()->json(['error' => 'Soal tidak sesuai.'], 422);
+        }
 
         if ($room->game_mode === 'survival') {
             $wrongAnswers = StudentAnswer::where('room_session_id', $session->id)
                 ->where('user_id', $user->id)
                 ->where('is_correct', false)
                 ->count();
-            abort_if($wrongAnswers >= 3, 422, 'Anda sudah tereliminasi.');
+            if ($wrongAnswers >= 3) {
+                return response()->json(['error' => 'Anda sudah tereliminasi.'], 422);
+            }
         }
 
         // Cegah jawab dua kali
@@ -324,16 +333,24 @@ class RoomController extends Controller
         $room->load('session');
         $session = $room->session;
 
-        abort_if(! $session || ! $session->isPlaying(), 422, 'Game belum berjalan.');
+        if (! $session || ! $session->isPlaying()) {
+            return response()->json(['error' => 'Game belum berjalan atau sudah selesai.'], 422);
+        }
 
         $myPivot = $room->students()->where('room_user.user_id', $user->id)->first()?->pivot;
-        abort_if(! $myPivot, 403, 'Unauthorized');
-        abort_if($myPivot->has_used_5050, 422, 'Power-up sudah digunakan.');
+        if (! $myPivot) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        if ($myPivot->has_used_5050) {
+            return response()->json(['error' => 'Power-up sudah digunakan.'], 422);
+        }
 
         // Get current question
         $questions = $room->game->questions()->orderBy('order')->get()->values();
         $currentQuestion = $questions->get($session->current_question_index);
-        abort_if(! $currentQuestion, 422, 'Soal tidak ditemukan.');
+        if (! $currentQuestion) {
+            return response()->json(['error' => 'Soal tidak ditemukan.'], 422);
+        }
 
         // Get wrong options
         $wrongOptions = $currentQuestion->options()->where('is_correct', false)->get();

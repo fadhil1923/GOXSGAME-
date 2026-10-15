@@ -76,12 +76,17 @@ class GameSessionController extends Controller
 
         $room->load('game.questions', 'session');
         $session = $room->session;
-        abort_if(! $session || ! $session->isPlaying(), 422, 'Game belum berjalan.');
 
-        $totalQuestions = $room->game->questions->count();
-        $nextIndex = $session->current_question_index + 1;
+        if (! $session || ! $session->isPlaying()) {
+            return redirect()->route('teacher.rooms.lobby', $room)
+                ->with('info', 'Game belum berjalan atau sudah selesai.');
+        }
 
-        if ($nextIndex >= $totalQuestions) {
+        $questions = $room->game->questions()->orderBy('order')->get()->values();
+        $totalQuestions = $questions->count();
+        $nextIndex = (int) $session->current_question_index + 1;
+
+        if ($nextIndex >= $totalQuestions || ! $questions->has($nextIndex)) {
             // Tidak ada soal berikutnya → selesaikan game
             $session->update(['status' => 'finished']);
 
@@ -89,8 +94,8 @@ class GameSessionController extends Controller
                 ->with('success', 'Game selesai! Leaderboard siap.');
         }
 
-        $nextQuestion = $room->game->questions->get($nextIndex);
-        $timeLimit = $room->custom_time_per_question ?? $nextQuestion->time_limit_seconds;
+        $nextQuestion = $questions->get($nextIndex);
+        $timeLimit = $room->custom_time_per_question ?? ($nextQuestion?->time_limit_seconds ?? 30);
 
         $session->update([
             'current_question_index' => $nextIndex,
