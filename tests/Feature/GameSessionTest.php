@@ -7,6 +7,7 @@ use App\Models\Question;
 use App\Models\QuestionOption;
 use App\Models\Room;
 use App\Models\RoomSession;
+use App\Models\StudentAnswer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -272,5 +273,132 @@ class GameSessionTest extends TestCase
             'room_id' => $room->id,
             'status' => 'finished',
         ]);
+    }
+
+    #[Test]
+    public function game_advances_immediately_when_all_students_have_answered(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $student1 = User::factory()->create(['role' => 'student']);
+        $student2 = User::factory()->create(['role' => 'student']);
+
+        $game = $this->makeGameWithQuestions(2);
+        $firstQuestion = $game->questions()->orderBy('order')->first();
+        $option = $firstQuestion->options()->first();
+
+        $room = Room::factory()->create(['game_id' => $game->id, 'user_id' => $teacher->id]);
+        $room->students()->attach([$student1->id, $student2->id]);
+
+        $session = RoomSession::create([
+            'room_id' => $room->id,
+            'status' => 'playing',
+            'current_question_index' => 0,
+            'question_started_at' => Carbon::now(),
+            'current_time_limit' => 30,
+        ]);
+
+        // Siswa 1 menjawab -> masih menunggu siswa 2
+        $res1 = $this->actingAs($student1)->postJson(route('student.room.answer', $room), [
+            'question_id' => $firstQuestion->id,
+            'option_id' => $option->id,
+        ]);
+        $res1->assertOk()->assertJsonPath('auto_advanced', false);
+
+        $session->refresh();
+        $this->assertEquals(0, $session->current_question_index);
+
+        // Siswa 2 menjawab -> semua siswa aktif sudah menjawab, harus langsung pindah!
+        $res2 = $this->actingAs($student2)->postJson(route('student.room.answer', $room), [
+            'question_id' => $firstQuestion->id,
+            'option_id' => $option->id,
+        ]);
+        $res2->assertOk()->assertJsonPath('auto_advanced', true);
+
+        $session->refresh();
+        $this->assertEquals(1, $session->current_question_index);
+    }
+
+    #[Test]
+    public function survival_mode_auto_advances_when_all_remaining_active_students_have_answered(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $eliminatedStudent = User::factory()->create(['role' => 'student']);
+        $activeStudent = User::factory()->create(['role' => 'student']);
+
+        // 4 soal: soal 0, 1, 2 dijawab salah oleh eliminatedStudent, soal 3 yang sedang aktif
+        $game = $this->makeGameWithQuestions(4);
+        $questions = $game->questions()->orderBy('order')->get();
+        $q3 = $questions[3];
+        $option = $q3->options()->first();
+
+        $room = Room::factory()->create([
+            'game_id' => $game->id,
+            'user_id' => $teacher->id,
+            'game_mode' => 'survival',
+        ]);
+        $room->students()->attach([$eliminatedStudent->id, $activeStudent->id]);
+
+        $session = RoomSession::create([
+            'room_id' => $room->id,
+            'status' => 'playing',
+            'current_question_index' => 3,
+            'question_started_at' => Carbon::now(),
+            'current_time_limit' => 30,
+        ]);
+
+        // Simulasikan eliminatedStudent sudah salah 3x di soal 0, 1, 2
+        for ($i = 0; $i < 3; $i++) {
+            StudentAnswer::create([
+                'room_session_id' => $session->id,
+                'user_id' => $eliminatedStudent->id,
+                'question_id' => $questions[$i]->id,
+                'question_option_id' => $questions[$i]->options()->where('is_correct', false)->first()->id,
+                'answered_at' => Carbon::now(),
+                'is_correct' => false,
+                'score_earned' => 0,
+            ]);
+        }
+
+        // Sekarang hanya activeStudent yang masih hidup. Begitu activeStudent menjawab soal 3, game harus langsung finish!
+        $res = $this->actingAs($activeStudent)->postJson(route('student.room.answer', $room), [
+            'question_id' => $q3->id,
+            'option_id' => $option->id,
+        ]);
+        $res->assertOk()->assertJsonPath('auto_advanced', true);
+
+        $session->refresh();
+        $this->assertEquals('finished', $session->status);
+    }
+
+    #[Test]
+    public function game_finishes_immediately_when_all_students_answer_last_question(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $student = User::factory()->create(['role' => 'student']);
+
+        $game = $this->makeGameWithQuestions(1);
+        $lastQuestion = $game->questions()->first();
+        $option = $lastQuestion->options()->first();
+
+        $room = Room::factory()->create(['game_id' => $game->id, 'user_id' => $teacher->id]);
+        $room->students()->attach($student->id);
+
+        $session = RoomSession::create([
+            'room_id' => $room->id,
+            'status' => 'playing',
+            'current_question_index' => 0,
+            'question_started_at' => Carbon::now(),
+            'current_time_limit' => 30,
+        ]);
+
+        $res = $this->actingAs($student)->postJson(route('student.room.answer', $room), [
+            'question_id' => $lastQuestion->id,
+            'option_id' => $option->id,
+        ]);
+
+        $res->assertOk()->assertJsonPath('auto_advanced', true);
+
+        $session->refresh();
+        $this->assertEquals('finished', $session->status);
     }
 }

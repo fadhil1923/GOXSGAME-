@@ -418,6 +418,13 @@ async function submitAnswer(optionId, questionId, data) {
         scoreEl.textContent = totalScore;
         scoreEl.classList.add('pop');
         setTimeout(() => scoreEl.classList.remove('pop'), 400);
+
+        // Jika semua siswa sudah selesai menjawab, segera beralih ke soal berikutnya
+        if (result.auto_advanced) {
+            setTimeout(() => {
+                fetchState();
+            }, 800);
+        }
     } catch(e) {
         answered = false;
     }

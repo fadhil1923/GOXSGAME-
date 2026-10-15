@@ -323,10 +323,13 @@ class RoomController extends Controller
             'score_earned' => $scoreEarned,
         ]);
 
+        $autoAdvanced = $session->checkAndAutoAdvance();
+
         return response()->json([
             'is_correct' => $isCorrect,
             'score_earned' => $scoreEarned,
             'correct_option_id' => $currentQuestion->correctOption?->id,
+            'auto_advanced' => $autoAdvanced,
         ]);
     }
 

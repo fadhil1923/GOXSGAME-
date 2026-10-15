@@ -386,7 +386,7 @@
     }
 
     pollLeaderboard();
-    setInterval(pollLeaderboard, 2500);
+    setInterval(pollLeaderboard, 1800);
     @endif
 
     @if($isPlaying)
