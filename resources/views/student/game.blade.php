@@ -142,10 +142,10 @@ const COLORS = ['bg-[#EF4444] text-white', 'bg-[#3B82F6] text-white', 'bg-[#FACC
 const SHAPES = ['change_history', 'check_box_outline_blank', 'circle', 'star'];
 const LETTERS = ['A', 'B', 'C', 'D'];
 
-const stateUrl = "{{ route('student.room.state', $room) }}";
-const answerUrl = "{{ route('student.room.answer', $room) }}";
-const powerupUrl = "{{ route('student.room.powerup', $room) }}";
-const resultUrl = "{{ route('student.result', $room) }}";
+const stateUrl = "{{ route('student.room.state', $room, false) }}";
+const answerUrl = "{{ route('student.room.answer', $room, false) }}";
+const powerupUrl = "{{ route('student.room.powerup', $room, false) }}";
+const resultUrl = "{{ route('student.result', $room, false) }}";
 const csrfToken = "{{ csrf_token() }}";
 
 let currentQuestionId = null;
@@ -158,12 +158,31 @@ let answered = false;
 
 async function fetchState() {
     try {
-        const res = await fetch(stateUrl + "?t=" + Date.now(), {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        const res = await fetch(stateUrl + (stateUrl.includes('?') ? '&' : '?') + "t=" + Date.now(), {
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 
+                'Accept': 'application/json', 
+                'X-Requested-With': 'XMLHttpRequest' 
+            }
         });
+
+        if (res.status === 401 || res.status === 403) {
+            console.warn('Student session expired or unauthorized.');
+            window.location.href = "{{ route('student.join', [], false) }}";
+            return;
+        }
+
+        if (!res.ok) {
+            console.warn('State fetch returned non-ok:', res.status);
+            return;
+        }
+
         const data = await res.json();
         handleState(data);
-    } catch(e) { /* silent */ }
+    } catch(e) { 
+        console.error('fetchState error:', e);
+    }
 }
 
 let isEliminated = false;
@@ -541,9 +560,16 @@ bgmToggle.addEventListener('click', () => {
 });
 // ======================
 
-// Mulai polling
-fetchState();
-pollInterval = setInterval(fetchState, 2000);
+// Render state awal langsung dari server tanpa jeda (0 millisecond loading)
+const initialState = @json($initialState ?? null);
+if (initialState && initialState.status === 'playing') {
+    handleState(initialState);
+} else {
+    fetchState();
+}
+
+// Mulai sinkronisasi polling berkala
+pollInterval = setInterval(fetchState, 1500);
 </script>
 @endpush
 @endsection

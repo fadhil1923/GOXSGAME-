@@ -105,10 +105,15 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        /** @var User $user */
+        /** @var User|null $user */
         $user = request()->user();
 
-        if (! $room->students()->where('user_id', $user->id)->exists()) {
+        if (! $user) {
+            return redirect()->route('student.join')
+                ->withErrors(['pin' => 'Silakan bergabung ke room terlebih dahulu.']);
+        }
+
+        if (! $room->students()->where('room_user.user_id', $user->id)->exists()) {
             return redirect()->route('student.join')
                 ->withErrors(['pin' => 'Anda belum bergabung ke room ini.']);
         }
@@ -127,41 +132,36 @@ class RoomController extends Controller
                 ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         }
 
-        // Game sedang berjalan → halaman game
+        // Game sedang berjalan → halaman game dengan data state awal (0 delay tanpa stuck "Memuat soal...")
+        $initialState = $this->getRoomState($room, $user);
+
         return response()
-            ->view('student.game', compact('room'))
+            ->view('student.game', compact('room', 'initialState'))
             ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     /**
-     * Polling endpoint — siswa poll ini setiap 2 detik untuk sinkronisasi state.
+     * Hitung state lengkap game room untuk siswa aktif.
      */
-    public function state(Room $room, Request $request)
+    public function getRoomState(Room $room, User $user): array
     {
-        /** @var User $user */
-        $user = $request->user();
-
-        if (! $room->students()->where('user_id', $user->id)->exists()) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
         $room->load('game.questions.options', 'session');
         $session = $room->session;
 
-        if (! $session) {
-            return response()->json(['status' => 'waiting']);
+        if (! $session || $session->status === 'waiting') {
+            return ['status' => 'waiting'];
         }
 
         if ($session->isFinished()) {
-            return response()->json(['status' => 'finished']);
+            return ['status' => 'finished'];
         }
 
-        $questions = $room->game->questions;
-        $currentIndex = $session->current_question_index;
+        $questions = $room->game->questions()->orderBy('order')->get()->values();
+        $currentIndex = (int) ($session->current_question_index ?? 0);
         $currentQuestion = $questions->get($currentIndex);
 
         if (! $currentQuestion) {
-            return response()->json(['status' => 'finished']);
+            return ['status' => 'finished'];
         }
 
         // Apakah siswa sudah menjawab soal ini?
@@ -180,14 +180,16 @@ class RoomController extends Controller
         }
 
         if ($room->game_mode === 'survival' && $lives <= 0) {
-            return response()->json(['status' => 'eliminated']);
+            return ['status' => 'eliminated'];
         }
 
-        $myPivot = $room->students()->where('user_id', $user->id)->first()?->pivot;
+        $myPivot = $room->students()->where('room_user.user_id', $user->id)->first()?->pivot;
         $myTeam = $myPivot ? $myPivot->team : null;
-        $hasUsed5050 = $myPivot ? $myPivot->has_used_5050 : false;
+        $hasUsed5050 = $myPivot ? (bool) $myPivot->has_used_5050 : false;
 
-        return response()->json([
+        $timeLimit = $session->current_time_limit ?: $currentQuestion->time_limit_seconds;
+
+        return [
             'status' => 'playing',
             'game_mode' => $room->game_mode,
             'lives' => $lives,
@@ -195,7 +197,7 @@ class RoomController extends Controller
             'has_used_5050' => $hasUsed5050,
             'question_index' => $currentIndex,
             'total_questions' => $questions->count(),
-            'time_limit' => $session->current_time_limit,
+            'time_limit' => $timeLimit,
             'time_remaining' => $session->timeRemaining(),
             'question' => [
                 'id' => $currentQuestion->id,
@@ -205,14 +207,36 @@ class RoomController extends Controller
                 'options' => $currentQuestion->options->map(fn ($o) => [
                     'id' => $o->id,
                     'text' => $o->option_text,
-                ]),
+                ])->values(),
             ],
             'my_answer' => $myAnswer ? [
                 'option_id' => $myAnswer->question_option_id,
                 'is_correct' => $myAnswer->is_correct,
                 'score_earned' => $myAnswer->score_earned,
             ] : null,
-        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+        ];
+    }
+
+    /**
+     * Polling endpoint — siswa poll ini setiap 1.5 detik untuk sinkronisasi state.
+     */
+    public function state(Room $room, Request $request)
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        if (! $room->students()->where('room_user.user_id', $user->id)->exists()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $state = $this->getRoomState($room, $user);
+
+        return response()->json($state)
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     /**
@@ -225,8 +249,12 @@ class RoomController extends Controller
             'option_id' => ['required', 'exists:question_options,id'],
         ]);
 
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
 
         $room->load('session');
         $session = $room->session;
@@ -235,7 +263,7 @@ class RoomController extends Controller
         abort_if($session->timeRemaining() === 0, 422, 'Waktu habis!');
 
         // Pastikan option milik question yang aktif
-        $questions = $room->game->questions()->orderBy('order')->get();
+        $questions = $room->game->questions()->orderBy('order')->get()->values();
         $currentQuestion = $questions->get($session->current_question_index);
 
         abort_if(! $currentQuestion || $currentQuestion->id !== (int) $request->question_id, 422, 'Soal tidak sesuai.');
@@ -286,20 +314,24 @@ class RoomController extends Controller
 
     public function usePowerup(Room $room, Request $request)
     {
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
 
         $room->load('session');
         $session = $room->session;
 
         abort_if(! $session || ! $session->isPlaying(), 422, 'Game belum berjalan.');
 
-        $myPivot = $room->students()->where('user_id', $user->id)->first()?->pivot;
+        $myPivot = $room->students()->where('room_user.user_id', $user->id)->first()?->pivot;
         abort_if(! $myPivot, 403, 'Unauthorized');
         abort_if($myPivot->has_used_5050, 422, 'Power-up sudah digunakan.');
 
         // Get current question
-        $questions = $room->game->questions()->orderBy('order')->get();
+        $questions = $room->game->questions()->orderBy('order')->get()->values();
         $currentQuestion = $questions->get($session->current_question_index);
         abort_if(! $currentQuestion, 422, 'Soal tidak ditemukan.');
 
@@ -319,10 +351,14 @@ class RoomController extends Controller
 
     public function result(Room $room)
     {
-        /** @var User $user */
+        /** @var User|null $user */
         $user = request()->user();
 
-        if (! $room->students()->where('user_id', $user->id)->exists()) {
+        if (! $user) {
+            return redirect()->route('student.join');
+        }
+
+        if (! $room->students()->where('room_user.user_id', $user->id)->exists()) {
             return redirect()->route('student.join');
         }
 

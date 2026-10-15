@@ -21,6 +21,7 @@ class RoomFlowTest extends TestCase
 
         $response = $this->actingAs($teacher)->post(route('teacher.rooms.store'), [
             'game_id' => $game->id,
+            'game_mode' => 'classic',
         ]);
 
         $this->assertDatabaseCount('rooms', 1);
@@ -94,7 +95,7 @@ class RoomFlowTest extends TestCase
         $teacher = User::factory()->create(['role' => 'teacher']);
 
         $this->actingAs($teacher)
-            ->get(route('admin.games.index'))
+            ->get(route('manage.users.index'))
             ->assertForbidden();
     }
 

@@ -8,6 +8,7 @@ use App\Models\RoomSession;
 use App\Models\StudentAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\ComponentAttributeBag;
 
@@ -36,7 +37,9 @@ class GameSessionController extends Controller
         $room->load('game.questions', 'session');
 
         $firstQuestion = $room->game->questions->first();
-        $timeLimit = $room->custom_time_per_question ?? $firstQuestion->time_limit_seconds;
+        $timeLimit = $request->filled('custom_time')
+            ? (int) $request->input('custom_time')
+            : ($room->custom_time_per_question ?? $firstQuestion->time_limit_seconds);
 
         if ($room->session) {
             // Reset sesi yang sudah ada
@@ -46,6 +49,10 @@ class GameSessionController extends Controller
                 'question_started_at' => Carbon::now(),
                 'current_time_limit' => $timeLimit,
             ]);
+            // Hapus jawaban sesi lama jika game di-restart
+            StudentAnswer::where('room_session_id', $room->session->id)->delete();
+            // Reset powerup 50:50 di room_user
+            DB::table('room_user')->where('room_id', $room->id)->update(['has_used_5050' => false]);
         } else {
             RoomSession::create([
                 'room_id' => $room->id,

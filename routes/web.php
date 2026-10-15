@@ -100,7 +100,7 @@ Route::prefix('student')->name('student.')->group(function () {
 });
 
 // ===== STUDENT ROUTES (AUTH REQUIRED) =====
-Route::middleware(['auth', 'verified', 'role:student'])
+Route::middleware(['auth', 'role:student'])
     ->prefix('student')
     ->name('student.')
     ->group(function () {

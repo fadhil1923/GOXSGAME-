@@ -62,9 +62,9 @@
 
 @push('scripts')
 <script>
-    // Poll setiap 1.2 detik — kalau state berubah, redirect ke halaman game
-    const pollUrl = "{{ route('student.room.state', $room) }}";
-    const gameUrl = "{{ route('student.room', $room) }}";
+    // Poll setiap 1 detik — kalau state berubah, redirect ke halaman game
+    const pollUrl = "{{ route('student.room.state', $room, false) }}";
+    const gameUrl = "{{ route('student.room', $room, false) }}";
     let interval = null;
     let isTransitioning = false;
 
@@ -80,6 +80,11 @@
                 },
                 credentials: 'same-origin'
             });
+
+            if (res.status === 401 || res.status === 403) {
+                console.warn('Sesi tidak valid di waiting room');
+                return;
+            }
 
             if (!res.ok) return;
 
@@ -101,6 +106,10 @@
                 // Paksa browser berpindah halaman ke tampilan game dengan parameter unik
                 const redirectTarget = gameUrl + (gameUrl.includes('?') ? '&' : '?') + 'play=' + Date.now();
                 window.location.replace(redirectTarget);
+                // Fallback jika replace lambat
+                setTimeout(() => {
+                    window.location.href = redirectTarget;
+                }, 500);
             }
         } catch (e) {
             console.error('Polling error:', e);
@@ -110,7 +119,7 @@
     function startPolling() {
         if (!interval && !isTransitioning) {
             pollState();
-            interval = setInterval(pollState, 1200);
+            interval = setInterval(pollState, 1000);
         }
     }
 

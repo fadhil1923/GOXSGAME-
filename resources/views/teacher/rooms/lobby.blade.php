@@ -248,7 +248,7 @@
 @push('scripts')
 <script>
     // ===== POLLING: Daftar Siswa Real-time =====
-    const studentsUrl = "{{ route('teacher.rooms.students', $room) }}";
+    const studentsUrl = "{{ route('teacher.rooms.students', $room, false) }}";
     const countEl = document.getElementById('student-count');
     const listEl = document.getElementById('student-list');
     let knownStudentIds = new Set([
@@ -257,7 +257,9 @@
 
     async function pollStudents() {
         try {
-            const res = await fetch(studentsUrl, {
+            const res = await fetch(studentsUrl + (studentsUrl.includes('?') ? '&' : '?') + "t=" + Date.now(), {
+                cache: 'no-store',
+                credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             });
             const data = await res.json();
@@ -315,13 +317,15 @@
 
     @if($isPlaying)
     // ===== POLLING: Live Leaderboard =====
-    const leaderboardUrl = "{{ route('teacher.rooms.leaderboardData', $room) }}";
+    const leaderboardUrl = "{{ route('teacher.rooms.leaderboardData', $room, false) }}";
     const leaderboardEl = document.getElementById('live-leaderboard');
     let previousScores = {};
 
     async function pollLeaderboard() {
         try {
-            const res = await fetch(leaderboardUrl, {
+            const res = await fetch(leaderboardUrl + (leaderboardUrl.includes('?') ? '&' : '?') + "t=" + Date.now(), {
+                cache: 'no-store',
+                credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             });
             const data = await res.json();
