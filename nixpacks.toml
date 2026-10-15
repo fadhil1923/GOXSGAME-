@@ -3,3 +3,12 @@
 NIXPACKS_PHP_VERSION = "8.4"
 NIXPACKS_PHP_ROOT = "/app/public"
 NIXPACKS_NODE_VERSION = "22"
+
+[phases.build]
+cmds = [
+    "npm run build",
+    "mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cache",
+    "touch database/database.sqlite",
+    "chmod -R 777 storage bootstrap/cache database"
+]
+
