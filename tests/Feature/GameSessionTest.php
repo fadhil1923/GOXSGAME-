@@ -70,6 +70,28 @@ class GameSessionTest extends TestCase
     }
 
     #[Test]
+    public function teacher_rooms_next_is_exempt_from_csrf_verification(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $game = $this->makeGameWithQuestions(3);
+        $room = Room::factory()->create(['game_id' => $game->id, 'user_id' => $teacher->id]);
+
+        $this->actingAs($teacher)->post(route('teacher.rooms.play', $room));
+
+        // Panggil POST tanpa token CSRF dengan middleware aktif
+        $response = $this->actingAs($teacher)
+            ->withMiddleware()
+            ->post(route('teacher.rooms.next', $room));
+
+        $response->assertStatus(302);
+        $response->assertRedirect(route('teacher.rooms.lobby', $room));
+        $this->assertDatabaseHas('room_sessions', [
+            'room_id' => $room->id,
+            'current_question_index' => 1,
+        ]);
+    }
+
+    #[Test]
     public function game_finishes_after_last_question(): void
     {
         $teacher = User::factory()->create(['role' => 'teacher']);

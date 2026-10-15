@@ -67,6 +67,10 @@ class GameSessionController extends Controller
             ]);
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['status' => 'playing']);
+        }
+
         return redirect()->route('teacher.rooms.lobby', $room)
             ->with('success', 'Game dimulai!');
     }
@@ -82,11 +86,19 @@ class GameSessionController extends Controller
         $session = $room->session;
 
         if (! $session || ! $session->isPlaying()) {
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'not_playing', 'message' => 'Game belum berjalan atau sudah selesai.']);
+            }
+
             return redirect()->route('teacher.rooms.lobby', $room)
                 ->with('info', 'Game belum berjalan atau sudah selesai.');
         }
 
         $session->advanceQuestion();
+
+        if ($request->expectsJson()) {
+            return response()->json(['status' => 'success', 'question_index' => $session->current_question_index]);
+        }
 
         return redirect()->route('teacher.rooms.lobby', $room);
     }
@@ -99,6 +111,10 @@ class GameSessionController extends Controller
         Gate::authorize('update', $room);
 
         $room->session?->update(['status' => 'finished']);
+
+        if ($request->expectsJson()) {
+            return response()->json(['status' => 'finished']);
+        }
 
         return redirect()->route('teacher.rooms.lobby', $room)
             ->with('success', 'Game dihentikan.');
