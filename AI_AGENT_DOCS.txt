@@ -1,0 +1,422 @@
+================================================================================
+  GOXSGAME (GOXSGROW) — DOKUMEN ACUAN RESMI AI AGENT & DEVELOPER
+  Panduan Teknis, Standar Arsitektur, Kontrak Desain, & Pencegahan Bug
+  Versi    : 2.5 (Open Source & Public Repository Edition)
+  Tanggal  : Oktober 2026
+  Status   : ACTIVE PRODUCTION BLUEPRINT FOR GITHUB PUBLIC REPOSITORY
+================================================================================
+
+DOKUMEN INI ADALAH SUMBER KEBENARAN TERTINGGI (SOURCE OF TRUTH) BAGI SETIAP 
+AI AGENT (Antigravity, Cursor, GitHub Copilot, Claude Code, Windsurf, Aider, 
+ChatGPT, dll.) MAUPUN KONTRIBUTOR KETIKA MEMBACA, MERANCANG, MENGEMBANGKAN, 
+MERIVIEW PR, MAUPUN MENGUJI KODE PADA REPOSITORI PUBLIK GOXSGAME.
+
+================================================================================
+DAFTAR ISI
+================================================================================
+  1. Identitas, Visi Produk, & Lisensi Publik
+  2. Protokol Keamanan & Perlindungan Rahasia (CRITICAL FOR GITHUB)
+  3. Quickstart Reproduksi Cepat 3 Menit (AI & Contributor Guide)
+  4. Prompt Sistem Baku AI Agent (Ready-to-Copy System Primer)
+  5. Spesifikasi Stack Teknologi & Lingkungan
+  6. Struktur Direktori & Peta Arsitektur Proyek
+  7. Skema Database & Relasi Model Eloquent
+  8. Desain Sistem Neo-Brutalism & Aturan Kontras (CRITICAL UI CONTRACT)
+  9. Alur Bisnis Game Loop & Polling Engine Real-Time
+  10. Integrasi AI (Google Gemini & Robust Fallback Engine)
+  11. Sistem Pesan Pengembangan (Feedback Pengguna ke Admin)
+  12. Matriks Jebakan Teknis & Pencegahan Bug (Known Gotchas Matrix)
+  13. Standar Kode PHP, Laravel Boost, & Formatting (Pint)
+  14. Pengujian Otomatis (PHPUnit Feature & Unit Testing)
+  15. Standar Kontribusi Git & Checklist Pre-Commit / Pre-PR
+
+================================================================================
+1. IDENTITAS, VISI PRODUK, & LISENSI PUBLIK
+================================================================================
+- Nama Repositori  : GOXSGAME (GOXSGROW Engine)
+- Target Pengguna  : Guru (Host/Creator), Siswa (Player/Learner), Administrator
+- Karakter Produk  : Platform kuis edukasi multiplayer real-time kelas dunia 
+                     bergaya Blooket & Kahoot dengan sentuhan estetika Neo-Brutalism,
+                     ditenagai AI Quiz Generator otomatis untuk guru di Indonesia.
+- Nilai Unggulan   :
+  1. Zero Friction Join : Siswa masuk arena < 5 detik via 6-digit PIN tanpa wajib registrasi.
+  2. Smart AI Quiz      : Generator soal otomatis per topik kurikulum atau dokumen modul ajar.
+  3. Interactive Live   : Power-up (50:50, Streak Shield), avatar lucu, live podium.
+  4. Dual Mode Kontras  : Dukungan penuh Light Mode & Dark Mode dengan kontras sempurna.
+
+================================================================================
+2. PROTOKOL KEAMANAN & PERLINDUNGAN RAHASIA (CRITICAL FOR GITHUB)
+================================================================================
+KARENA REPOSITORI INI BERSIFAT PUBLIK DI GITHUB, SETIAP AI AGENT WAJIB MEMATUHI
+ATURAN KEAMANAN BERIKUT TANPA PENGECUALIAN:
+
+1. DILARANG KERAS MENG-COMMIT FILE `.env`:
+   - File `.env` berisi secret keys (APP_KEY, GEMINI_API_KEY, DB_PASSWORD).
+   - Pastikan `.env` selalu berada di dalam `.gitignore`.
+   - Gunakan `.env.example` dengan placeholder (misal: `GEMINI_API_KEY=your_gemini_api_key_here`).
+
+2. PEMBACAAN CONFIG YANG AMAN (CONFIG CACHE READY):
+   - JANGAN PERNAH memanggil `env('NAMA_KEY')` langsung di Controller/Model/Service.
+   - Panggil melalui konfigurasi: `config('services.gemini.api_key')`.
+   - Mengapa? Saat `php artisan config:cache` dijalankan di production, pemanggilan `env()` 
+     akan selalu mengembalikan `null`!
+
+3. SANITASI DATA PADA COMMIT:
+   - Dilarang menyimpan file SQLite lokal yang berisi data riil pengguna (`database/*.sqlite` diabaikan oleh `.gitignore`).
+   - Jangan menuliskan token, password hash asli, atau data pribadi siswa ke dalam seeder publik.
+   - Gunakan `fake()` / Faker untuk menghasilkan data dummy.
+
+4. HAK AKSES & OTORISASI (ROLE-BASED GUARD):
+   - Seluruh rute `/manage/*` wajib diproteksi oleh middleware `role:admin` atau `role:admin,teacher`.
+   - Siswa atau guest yang mencoba mengakses rute admin HARUS langsung menerima respons `403 Forbidden`.
+
+================================================================================
+3. QUICKSTART REPRODUKSI CEPAT 3 MENIT (AI & CONTRIBUTOR GUIDE)
+================================================================================
+Langkah standar untuk menjalankan repositori ini dari nol di mesin lokal:
+
+```bash
+# 1. Clone repositori
+git clone https://github.com/username/goxsgame.git
+cd goxsgame
+
+# 2. Install dependensi Backend & Frontend
+composer install
+npm install
+
+# 3. Setup file konfigurasi lingkungan
+cp .env.example .env
+php artisan key:generate
+
+# 4. Atur database (MySQL atau SQLite) & Jalankan migrasi + seeder
+# Untuk MySQL: pastikan database 'goxsgame' sudah dibuat di DB_PORT 3306 atau 33306
+php artisan migrate:fresh --seed
+
+# 5. Build aset frontend (Tailwind & Alpine)
+npm run build
+# Atau untuk live reload development:
+npm run dev
+
+# 6. Jalankan server lokal
+php artisan serve
+```
+
+Kredensial Default Akun Uji Coba (Seeded Local Accounts):
+- Akun Administrator : `admin@goxsgame.com`   | Password: `password`
+- Akun Guru (Host)   : `teacher@goxsgame.com` | Password: `password`
+- Akun Siswa (Player): `student@goxsgame.com` | Password: `password`
+
+================================================================================
+4. PROMPT SISTEM BAKU AI AGENT (READY-TO-COPY SYSTEM PRIMER)
+================================================================================
+Gunakan teks di bawah ini sebagai System Instructions / Custom Instructions 
+pada tools seperti Cursor (.cursorrules), Claude Projects, Copilot, atau ChatGPT:
+
+```text
+Kamu adalah Senior Full-Stack Engineer ahli Laravel 12, PHP 8.4, Tailwind CSS v3, 
+dan Alpine.js yang memelihara repositori open-source GOXSGAME.
+
+Kaidah Kerja Mutlak:
+1. DESAIN SISTEM: Selalu terapkan gaya Neo-Brutalism ceria (border tebal 3px-4px hitam, 
+   hard offset shadow 4px-6px #000, rounded 2xl/3xl, palet warna #FFE600, #4ADE80, 
+   #2563EB, #06B6D4, #FB7185, #A855F7).
+2. KONTRAS TEKS: Elemen dengan latar cerah (#FFE600, #4ADE80, #06B6D4, #FB7185) 
+   HARUS SELALU BERTEKS HITAM PEKAT (#000000 !important) di Light Mode maupun Dark Mode.
+3. DARK MODE: Jangan biarkan input teks atau tombol menjadi tidak terbaca saat dark mode.
+4. LARAVEL WAY: Gunakan typed properties, constructor property promotion, Form Request / 
+   explicit validation, dan route model binding yang tepat.
+5. RESILIENSI AI: Selalu sediakan fallback template jika pemanggilan Google Gemini API gagal.
+6. TESTING & PINT: Selalu jalankan `vendor/bin/pint --format agent` dan `php artisan test` 
+   sebelum menandai pekerjaan selesai.
+7. KEAMANAN: Jangan pernah mengekspos API Key atau mengabaikan sanitasi input.
+```
+
+================================================================================
+5. SPESIFIKASI STACK TEKNOLOGI & LINGKUNGAN
+================================================================================
+- Backend Engine   : Laravel 12 (PHP 8.4)
+- Database         : MySQL (Default local dev port 33306 / 3306, db: `goxsgame`),
+                     didukung fallback SQLite (`database/database.sqlite`) untuk testing.
+- Frontend Stack   : Blade Templates, Vanilla Tailwind CSS v3, Alpine.js
+- Tipografi        : Google Fonts:
+                     * Display: 'Space Grotesk' & 'Plus Jakarta Sans'
+                     * Body   : 'Plus Jakarta Sans'
+                     * Code   : 'JetBrains Mono'
+- Ikonografi       : Google Material Symbols Outlined
+- Realtime Engine  : HTTP Polling Sinkron (~2000ms polling cycle ke `/student/room/{room}/state`)
+- AI Model Engine  : Google Gemini API (`gemini-1.5-flash` / `gemini-2.0-flash`) via `config('services.gemini.api_key')`
+- Code Formatter   : Laravel Pint (`vendor/bin/pint --format agent`)
+- Test Framework   : PHPUnit (`php artisan test`)
+
+================================================================================
+6. STRUKTUR DIREKTORI & PETA ARSITEKTUR PROYEK
+================================================================================
+app/
+  ├── Http/
+  │   ├── Controllers/
+  │   │   ├── Admin/
+  │   │   │   ├── GameController.php              # CRUD Bank Game & Kurikulum
+  │   │   │   ├── UserController.php              # Manajemen akun Guru/Siswa/Admin
+  │   │   │   ├── SubjectController.php           # Master Mapel
+  │   │   │   ├── SchoolClassController.php       # Master Jenjang / Kelas
+  │   │   │   ├── SettingController.php           # Pengaturan sistem & API Key
+  │   │   │   ├── AiImportController.php          # AI Document Parsing & Prompt Quiz Generator
+  │   │   │   └── DevelopmentMessageController.php# Kelola feedback pesan pengembangan
+  │   │   ├── Teacher/
+  │   │   │   ├── RoomController.php              # Buat & buka room PIN baru
+  │   │   │   └── GameSessionController.php       # Host controller: Start, Next, End, Leaderboard
+  │   │   ├── Student/
+  │   │   │   └── RoomController.php              # Join PIN, poll state, submit answer, powerup, result
+  │   │   ├── Api/
+  │   │   │   └── AiNpcController.php             # Endpoint interaksi NPC AI
+  │   │   ├── DashboardController.php             # Routing cerdas redirect sesuai role
+  │   │   └── DevelopmentMessageController.php    # Formulir kirim feedback guru/siswa & riwayat
+  │   └── Middleware/
+  │       └── RoleMiddleware.php                  # Guard berbasis role: admin, teacher, student
+  └── Models/
+      ├── User.php                                # Akun & identitas (role: admin|teacher|student)
+      ├── Game.php                                # Bank soal & metadata game
+      ├── Question.php                            # Soal teks, poin, gambar, waktu
+      ├── QuestionOption.php                      # Opsi pilihan A, B, C, D (is_correct)
+      ├── Room.php                                # Sesi room aktif (room_code 6-digit)
+      ├── RoomSession.php                         # Status live game (current_question_index, status)
+      ├── StudentAnswer.php                       # Jawaban yang di-submit siswa
+      ├── Subject.php                             # Mata pelajaran
+      ├── SchoolClass.php                         # Kelas sekolah
+      ├── DevelopmentMessage.php                  # Pesan pengembangan / saran / bug
+      └── AppSetting.php                          # Konfigurasi dinamis platform
+
+resources/views/
+  ├── layouts/
+  │   ├── neo.blade.php                           # Master layout auth utama (Neo-Brutalist + Sidebar)
+  │   ├── guest.blade.php                         # Master layout publik & login
+  │   └── navigation.blade.php
+  ├── admin/
+  │   ├── games/                                  # Kelola game & bank soal
+  │   ├── users/                                  # Kelola pengguna
+  │   ├── subjects/                               # Kelola mapel
+  │   ├── classes/                                # Kelola kelas
+  │   ├── settings/                               # Konfigurasi sistem
+  │   └── feedback/                               # Inbox kelola pesan pengembangan dari guru/siswa
+  ├── teacher/
+  │   └── rooms/                                  # Buat room, lobby PIN, game host controller
+  ├── student/
+  │   ├── join.blade.php                          # Layar input PIN instan
+  │   ├── room.blade.php                          # Arena bermain gameplay live siswa
+  │   └── result.blade.php                        # Layar pengumuman skor akhir & ranking
+  └── feedback/
+      └── create.blade.php                        # Halaman input saran & riwayat bagi guru & siswa
+
+================================================================================
+7. SKEMA DATABASE & RELASI MODEL ELOQUENT
+================================================================================
+1. `users`
+   - id, name, email, password, role ('admin', 'teacher', 'student'), avatar, remember_token, timestamps
+2. `games`
+   - id, user_id (guru creator), subject_id, title, description, thumbnail_url (LONGTEXT/TEXT),
+     game_url, xp_reward, grade_level, difficulty, timestamps
+3. `questions`
+   - id, game_id, question_text, question_image, points, time_limit_seconds, order, timestamps
+4. `question_options`
+   - id, question_id, option_text, is_correct (boolean), order, timestamps
+5. `rooms`
+   - id, user_id (guru host), game_id, room_code (6 digit uppercase, UNIQUE),
+     status ('active', 'closed'), max_players, current_game_mode ('classic', 'survival', 'team'),
+     timestamps
+6. `room_sessions`
+   - id, room_id, current_question_index, status ('waiting', 'playing', 'finished'),
+     started_at, ended_at, timestamps
+7. `room_user` (Pivot)
+   - id, room_id, user_id, team ('red', 'blue', 'green', 'yellow'), score, streak,
+     lives_remaining (default 3), has_used_5050 (boolean), timestamps
+8. `student_answers`
+   - id, room_session_id, user_id, question_id, question_option_id, is_correct,
+     points_awarded, time_taken_seconds, timestamps
+9. `development_messages`
+   - id, user_id (nullable, set null on delete), name, email, role,
+     category ('feature_request', 'bug_report', 'ui_ux', 'question', 'other'),
+     subject, message, status ('pending', 'read', 'in_progress', 'resolved'),
+     admin_notes (nullable), timestamps
+
+================================================================================
+8. DESAIN SISTEM NEO-BRUTALISM & ATURAN KONTRAS (CRITICAL UI CONTRACT)
+================================================================================
+ATURAN EMAS DESAIN (GOLDEN RULES):
+Estetika GOXSGAME menganut Neo-Brutalisme yang ceria, tegas, dan tebal. 
+DILARANG KERAS membuat tampilan yang flat, abu-abu polos, atau tipis tanpa karakter.
+
+1. BORDER & SHADOW
+   - Box Utama   : `border-4 border-black rounded-2xl` atau `rounded-3xl`
+   - Shadow Keras: `shadow-[4px_4px_0px_#000000]` atau `shadow-[6px_6px_0px_#000000]`
+   - Tombol Bouncing:
+     * Normal : `translate-x-0 translate-y-0 shadow-[4px_4px_0px_#000]`
+     * Hover  : `translate-y-[-2px] shadow-[6px_6px_0px_#000]`
+     * Active : `translate-y-[2px] shadow-[0px_0px_0px_#000]`
+
+2. PALET WARNA RESMI
+   - Kuning Utama  : `#FFE600` (Accent, Active Nav, Score Banner)
+   - Hijau Emerald : `#4ADE80` (Sukses, Play Button, Jawaban Benar)
+   - Biru Royal    : `#2563EB` (Primary Brand, Host Banner, Navigasi)
+   - Cyan Terang   : `#06B6D4` (Tag Versi, Kartu Info, Master Kelas)
+   - Rose / Pink   : `#FB7185` (Danger, Survival Heart, Badge Alert, Jawaban Salah)
+   - Ungu Elektrik : `#A855F7` (Kategori Fitur, Mapel, Kotak Saran)
+   - Hitam Pekat   : `#000000` (Seluruh Border, Teks Kontras Tinggi)
+
+3. ATURAN KONTRAS MUTLAK (ABSOLUTE CONTRAST RULE)
+   > [!CRITICAL]
+   > Latar belakang cerah (#FFE600, #4ADE80, #FB7185, #06B6D4, yellow-300, green-400) 
+   > HARUS SELALU BERPASANGAN DENGAN TEKS HITAM PEKAT (#000000 !important).
+   > JANGAN PERNAH MENARUH TEKS PUTIH DI ATAS WARNA-WARNA INI DALAM KONDISI APAPUN!
+
+4. KONTRAK DARK MODE
+   - Root Tag          : `html.dark` (Tersimpan di `localStorage.getItem('goxs_theme')`).
+   - Latar Belakang    : Body = `#0F172A`, Kartu/Sidebar = `#1E293B`, Sub-card = `#334155`.
+   - Warna Input       : Input teks, textarea, select = Latar `#0F172A`, Teks `#F8FAFC`, Border `#000`.
+   - Proteksi Teks     : Di dalam `resources/views/layouts/neo.blade.php`, sudah tersedia CSS global
+     yang memaksa elemen berwarna `#FFE600`, `#4ADE80`, `#06B6D4`, `#FB7185` tetap berteks hitam pekat
+     bahkan ketika mode dark aktif.
+
+5. PERANGKAP STACKING CONTEXT INPUT
+   - Kelas `.neo-input:focus` menggunakan `transform: translateY(3px)`.
+   - Efek CSS transform membentuk *new stacking context*, yang dapat menutupi ikon absolute di sampingnya.
+   - Solusi baku: Selalu sematkan `.relative > .pointer-events-none { z-index: 10; }` pada wadah ikon input.
+
+================================================================================
+9. ALUR BISNIS GAME LOOP & POLLING ENGINE REAL-TIME
+================================================================================
+Alur Gameplay Realtime (Tanpa WebSocket berat, menggunakan Polling HTTP efisien):
+1. [Guru] Memilih Game dari Bank Soal -> Klik "Buka Room Game" -> Menentukan Mode (Classic/Survival/Team).
+2. [Sistem] Meng-generate 6-digit `room_code` unik uppercase (contoh: `GOX888`).
+3. [Siswa] Buka `/student/join` -> Ketik 6 digit PIN -> Ketik Nama -> Sistem mendeteksi akun auth atau 
+   membuat sesi guest otomatis -> Masuk ke Room Lobby.
+4. [Guru] Di halaman `/teacher/rooms/{room}` memantau nama siswa yang bergabung -> Klik "MULAI GAME".
+5. [Sistem] Membuat record `RoomSession` (`status = 'playing'`, `current_question_index = 0`).
+6. [Siswa] Di halaman `/student/room/{room}`, JavaScript Alpine.js mengeksekusi polling interval setiap 2000ms:
+   - Endpoint: `GET /student/room/{room}/state`
+   - Menerima payload JSON: index soal aktif, sisa waktu, status game, leaderboard sementara.
+7. [Siswa] Memilih jawaban -> `POST /student/room/{room}/answer`:
+   - Sistem menghitung `time_taken_seconds`.
+   - Formula Skor: `max(500, base_points - floor(time_taken * penalty)) * streak_multiplier`.
+   - Mode Survival: Jika jawaban salah, `lives_remaining` berkurang 1 (dari total 3 hati).
+8. [Power-up 50:50]
+   - Siswa menekan tombol powerup -> `POST /student/room/{room}/powerup`
+   - Server mengeliminasi 2 opsi yang salah secara acak dan menandai `has_used_5050 = true`.
+9. [Guru] Setelah timer habis atau semua menjawab -> Klik "SOAL BERIKUTNYA" (`POST /teacher/rooms/{room}/next`).
+10. [Guru] Klik "SELESAIKAN GAME" -> Status menjadi `'finished'` -> Polling siswa mendeteksi perubahan status 
+    dan otomatis me-redirect ke `/student/room/{room}/result` untuk melihat podium peringkat.
+
+================================================================================
+10. INTEGRASI AI (GOOGLE GEMINI & ROBUST FALLBACK ENGINE)
+================================================================================
+1. ENV & KUNCI API:
+   - Konfigurasi: Dibaca melalui `config('services.gemini.api_key', env('GEMINI_API_KEY'))`.
+   - Model aktif yang direkomendasikan: `gemini-1.5-flash` atau `gemini-2.0-flash`.
+2. FORMAT OUTPUT JSON STRICT:
+   - AI Agent harus menginstruksikan Gemini untuk mengembalikan RAW JSON tanpa markdown wrapper (```json).
+   - Format wajib:
+     {
+       "title": "Judul Game",
+       "questions": [
+         {
+           "question": "Pertanyaan teks?",
+           "options": ["Pilihan A", "Pilihan B", "Pilihan C", "Pilihan D"],
+           "correct_index": 0,
+           "explanation": "Penjelasan singkat"
+         }
+       ]
+     }
+3. KONTRAK ANTI-CRASH (ZERO FAILURE GUARANTEE):
+   - Jika kuota API habis (HTTP 429), jaringan terputus, atau JSON parsing gagal,
+     sistem TIDAK BOLEH menampilkan crash page / Whoops exception ke guru.
+   - Sistem wajib menangkap exception (`try-catch`) dan mengembalikan template soal fallback 
+     berdasarkan topik kurikulum standar sehingga kegiatan belajar mengajar tetap berlangsung.
+
+================================================================================
+11. SISTEM PESAN PENGEMBANGAN (FEEDBACK PENGGUNA KE ADMIN)
+================================================================================
+Fitur penghubung antara pengguna di lapangan (Guru/Siswa) dengan Administrator sistem:
+1. Rute Pengguna:
+   - `GET  /feedback` -> `DevelopmentMessageController@create` (Tampil form saran & riwayat pesan pribadi).
+   - `POST /feedback` -> `DevelopmentMessageController@store`  (Simpan masukan baru dengan status='pending').
+2. Rute Khusus Admin:
+   - `GET    /manage/feedback`            -> `Admin\DevelopmentMessageController@index`
+   - `PATCH  /manage/feedback/{feedback}` -> `Admin\DevelopmentMessageController@update`
+   - `DELETE /manage/feedback/{feedback}` -> `Admin\DevelopmentMessageController@destroy`
+3. Parameter Binding Penting:
+   - Nama parameter route resource adalah `{feedback}`.
+   - Di controller admin, nama variabel parameter wajib: `DevelopmentMessage $feedback`.
+4. Siklus Status Pesan:
+   `pending` (Menunggu Review) -> `read` (Dibaca) -> `in_progress` (Sedang Diproses) -> `resolved` (Selesai).
+
+================================================================================
+12. MATRIKS JEBAKAN TEKNIS & PENCEGAHAN BUG (KNOWN GOTCHAS MATRIX)
+================================================================================
++-------------------------------+-----------------------------------+-----------------------------------------+
+| Potensi Masalah / Gejala      | Penyebab Teknis                   | Solusi Baku AI Agent                    |
++-------------------------------+-----------------------------------+-----------------------------------------+
+| SQL Truncation 1406           | Kolom string(255) thumbnail_url   | Gunakan $table->longText('thumbnail_url')|
+| Data too long                 | terisi URL gambar panjang / b64   | di skema migrasi.                       |
++-------------------------------+-----------------------------------+-----------------------------------------+
+| Route Model Binding Kosong    | Parameter route {feedback} tidak  | Samakan nama variabel di controller     |
+| saat update/delete feedback   | cocok dengan $developmentMessage  | menjadi `DevelopmentMessage $feedback`. |
++-------------------------------+-----------------------------------+-----------------------------------------+
+| env('GEMINI_API_KEY') null    | php artisan config:cache          | Baca via config('services.gemini.key')  |
+| saat di production            | membersihkan akses fungsi env()   | yang terdaftar di config/services.php.  |
++-------------------------------+-----------------------------------+-----------------------------------------+
+| Ikon input tertutup saat      | .neo-input:focus translateY(3px)  | Berikan .relative > .pointer-events-none|
+| focus field input aktif       | membentuk new stacking context    | { z-index: 10; } pada kontainer icon.   |
++-------------------------------+-----------------------------------+-----------------------------------------+
+| Teks tidak terbaca di tombol  | Menggunakan text-white pada latar | Terapkan !text-black pada warna cerah   |
+| kuning / hijau saat dark mode | cerah atau text-black di slate    | dan !text-white pada slate-800.         |
++-------------------------------+-----------------------------------+-----------------------------------------+
+| Root '/' mengembalikan 302    | Rute root me-redirect ke          | Sesuaikan assertion test:               |
+| bukan 200 di unit test        | route('student.join')             | $response->assertRedirect(route(...));  |
++-------------------------------+-----------------------------------+-----------------------------------------+
+
+================================================================================
+13. STANDAR KODE PHP, LARAVEL BOOST, & FORMATTING (PINT)
+================================================================================
+1. STANDAR PHP 8.4:
+   - Selalu gunakan kurung kurawal `{}` pada setiap struktur kontrol, termasuk if satu baris.
+   - Wajib menyertakan explicit return type declarations dan parameter type hints:
+     `public function getLeaderboard(Room $room): JsonResponse { ... }`
+   - Gunakan Constructor Property Promotion PHP 8.
+2. LARAVEL CONVENTIONS:
+   - Gunakan Artisan generator: `php artisan make:model -mfs` (Model, Migration, Factory, Seeder).
+   - Validasi data di Controller menggunakan `$request->validate([...])` atau Form Request khusus.
+   - Gunakan Named Routes (`route('nama.rute')`) di seluruh link dan redirect.
+3. KODE FORMATTER (LARAVEL PINT):
+   - Setelah selesai mengedit file PHP, jalankan Laravel Pint untuk memastikan format sesuai:
+     `vendor/bin/pint path/ke/file.php --format agent`
+
+================================================================================
+14. PENGUJIAN OTOMATIS (PHPUNIT FEATURE & UNIT TESTING)
+================================================================================
+- Buat test baru menggunakan: `php artisan make:test --phpunit NamaFeatureTest`
+- Letakkan pengujian di folder `tests/Feature/` untuk alur HTTP dan integrasi database.
+- Selalu gunakan trait `use RefreshDatabase;` pada class test yang berinteraksi dengan database.
+- Jalankan test spesifik:
+  `php artisan test tests/Feature/DevelopmentMessageTest.php`
+- Jalankan seluruh suite test dengan format ringkas:
+  `php artisan test --compact`
+
+================================================================================
+15. STANDAR KONTRIBUSI GIT & CHECKLIST PRE-COMMIT / PRE-PR
+================================================================================
+Sebelum melakukan `git commit` atau membuka Pull Request di GitHub, lakukan verifikasi:
+
+[ ] 1. Keamanan Secret: Tidak ada API key, token, atau kredensial riil yang tertulis di kode.
+[ ] 2. Status Git: File `.env` dan `database/*.sqlite` TIDAK masuk ke staging area (`git status`).
+[ ] 3. Formatting: Seluruh file PHP lolos format `vendor/bin/pint --format agent`.
+[ ] 4. Test Suite: Seluruh test fitur lulus (`php artisan test`).
+[ ] 5. Format Pesan Commit (Conventional Commits):
+       - `feat: tambah fitur xyz`
+       - `fix: perbaiki bug kontras warna pada room view`
+       - `refactor: optimasi query leaderboard polling`
+       - `test: tambah pengujian pesan pengembangan`
+       - `docs: perbarui panduan ai agent dan prd`
+
+================================================================================
+AKHIR DOKUMEN — GOXSGAME AI AGENT GUIDELINES v2.5
+Dokumen ini wajib dijaga konsistensinya setiap ada penambahan fitur atau perbaikan arsitektur.
+================================================================================
