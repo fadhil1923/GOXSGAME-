@@ -15,6 +15,11 @@ class DummyDataSeeder extends Seeder
      */
     public function run(): void
     {
+        // Cegah duplikasi data jika seeder dijalankan lebih dari satu kali
+        if (User::where('email', 'admin@goxsgame.com')->exists()) {
+            return;
+        }
+
         // Admin
         User::factory()->create([
             'name' => 'Admin User',
