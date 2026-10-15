@@ -105,9 +105,14 @@
             </div>
         </div>
 
-        <button type="submit" class="neo-btn w-full py-3.5 sm:py-4 rounded-xl bg-[#FFE600] hover:bg-[#FACC15] text-black font-display font-black text-sm sm:text-base uppercase tracking-wider shadow-[3px_3px_0px_#000] sm:shadow-[4px_4px_0px_#000]">
-            🚀 Simpan Game
-        </button>
+        <div class="flex flex-col gap-2">
+            <button type="submit" class="neo-btn w-full py-3.5 sm:py-4 rounded-xl bg-[#FFE600] hover:bg-[#FACC15] text-black font-display font-black text-sm sm:text-base uppercase tracking-wider shadow-[3px_3px_0px_#000] sm:shadow-[4px_4px_0px_#000]">
+                🚀 Simpan Game & Lanjut Buat Soal
+            </button>
+            <p class="text-center text-xs font-mono text-stone-500 dark:text-slate-400">
+                💡 Setelah game disimpan, kamu akan langsung diarahkan ke Bank Soal untuk menambahkan pertanyaan game.
+            </p>
+        </div>
     </form>
 </div>
 

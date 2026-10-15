@@ -54,17 +54,17 @@ class GameController extends Controller
             }
         }
 
-        Game::create($validated);
+        $game = Game::create($validated);
 
-        return redirect()->route('manage.games.index')
-            ->with('success', 'Game berhasil ditambahkan!');
+        return redirect()->route('manage.games.questions.index', $game)
+            ->with('success', 'Game berhasil disimpan! Silakan tambahkan soal untuk game ini.');
     }
 
     public function show(Game $game)
     {
         Gate::authorize('view', $game);
 
-        return view('manage.games.show', compact('game'));
+        return redirect()->route('manage.games.questions.index', $game);
     }
 
     public function edit(Game $game)
