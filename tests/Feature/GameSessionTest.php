@@ -401,4 +401,67 @@ class GameSessionTest extends TestCase
         $session->refresh();
         $this->assertEquals('finished', $session->status);
     }
+
+    #[Test]
+    public function student_can_view_answer_history_and_review_on_result_page(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $student = User::factory()->create(['role' => 'student']);
+
+        $game = $this->makeGameWithQuestions(2);
+        $questions = $game->questions()->orderBy('order')->get();
+        $q0 = $questions[0];
+        $q1 = $questions[1];
+
+        $q0Correct = $q0->options()->where('is_correct', true)->first();
+        $q1Wrong = $q1->options()->where('is_correct', false)->first();
+
+        $room = Room::factory()->create(['game_id' => $game->id, 'user_id' => $teacher->id]);
+        $room->students()->attach($student->id);
+
+        $session = RoomSession::create([
+            'room_id' => $room->id,
+            'status' => 'finished',
+            'current_question_index' => 1,
+            'question_started_at' => Carbon::now(),
+            'current_time_limit' => 30,
+        ]);
+
+        // Jawab soal 0 dengan benar
+        StudentAnswer::create([
+            'room_session_id' => $session->id,
+            'user_id' => $student->id,
+            'question_id' => $q0->id,
+            'question_option_id' => $q0Correct->id,
+            'answered_at' => Carbon::now(),
+            'is_correct' => true,
+            'score_earned' => 100,
+        ]);
+
+        // Jawab soal 1 dengan salah
+        StudentAnswer::create([
+            'room_session_id' => $session->id,
+            'user_id' => $student->id,
+            'question_id' => $q1->id,
+            'question_option_id' => $q1Wrong->id,
+            'answered_at' => Carbon::now(),
+            'is_correct' => false,
+            'score_earned' => 0,
+        ]);
+
+        $response = $this->actingAs($student)->get(route('student.result', $room));
+
+        $response->assertOk()
+            ->assertSeeText('Riwayat & Pembahasan Soal')
+            ->assertSee('1 Benar')
+            ->assertSee('1 Salah')
+            ->assertViewHas('reviewItems')
+            ->assertViewHas('summary', function ($summary) {
+                return $summary['total'] === 2
+                    && $summary['correct'] === 1
+                    && $summary['wrong'] === 1
+                    && $summary['unanswered'] === 0
+                    && $summary['accuracy'] === 50;
+            });
+    }
 }

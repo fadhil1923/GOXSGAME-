@@ -437,6 +437,63 @@ class RoomController extends Controller
             }
         }
 
-        return view('student.result', compact('room', 'leaderboard', 'myScore', 'myRank', 'teamLeaderboard', 'myTeam'));
+        // Ambil semua soal game beserta opsi-opsinya
+        $questions = $room->game
+            ? $room->game->questions()
+                ->with(['options'])
+                ->orderBy('order')
+                ->get()
+            : collect();
+
+        // Ambil riwayat jawaban siswa pada sesi ini
+        $myAnswers = $session
+            ? StudentAnswer::where('room_session_id', $session->id)
+                ->where('user_id', $user->id)
+                ->with('selectedOption')
+                ->get()
+                ->keyBy('question_id')
+            : collect();
+
+        $reviewItems = $questions->map(function ($question, $index) use ($myAnswers) {
+            $answer = $myAnswers->get($question->id);
+            $correctOption = $question->options->firstWhere('is_correct', true);
+
+            $status = 'unanswered';
+            if ($answer !== null) {
+                $status = $answer->is_correct ? 'correct' : 'wrong';
+            }
+
+            return (object) [
+                'index' => $index + 1,
+                'question' => $question,
+                'has_answered' => $answer !== null,
+                'is_correct' => (bool) ($answer?->is_correct ?? false),
+                'score_earned' => (int) ($answer?->score_earned ?? 0),
+                'selected_option' => $answer?->selectedOption,
+                'correct_option' => $correctOption,
+                'status' => $status,
+            ];
+        });
+
+        $summary = [
+            'total' => $questions->count(),
+            'correct' => $reviewItems->where('status', 'correct')->count(),
+            'wrong' => $reviewItems->where('status', 'wrong')->count(),
+            'unanswered' => $reviewItems->where('status', 'unanswered')->count(),
+            'accuracy' => $questions->count() > 0
+                ? (int) round(($reviewItems->where('status', 'correct')->count() / $questions->count()) * 100)
+                : 0,
+        ];
+
+        return view('student.result', compact(
+            'room',
+            'leaderboard',
+            'myScore',
+            'myRank',
+            'teamLeaderboard',
+            'myTeam',
+            'reviewItems',
+            'summary'
+        ));
     }
 }
