@@ -1,0 +1,4 @@
+# Configuration for Nixpacks Builder (Dokploy / Coolify / Railway)
+[variables]
+NIXPACKS_PHP_VERSION = "8.4"
+NIXPACKS_PHP_ROOT = "/app/public"
