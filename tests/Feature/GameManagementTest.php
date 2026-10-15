@@ -42,4 +42,29 @@ class GameManagementTest extends TestCase
 
         $response->assertRedirect(route('manage.games.questions.index', $game));
     }
+
+    #[Test]
+    public function teacher_can_generate_global_music_questions_by_topic(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+        $game = Game::factory()->create(['user_id' => $teacher->id]);
+
+        $response = $this->actingAs($teacher)->post(route('manage.games.questions.ai_generate.store', $game), [
+            'keyword' => 'Tebak Lagu Taylor Swift',
+            'count' => 3,
+            'question_type' => 'audio',
+        ]);
+
+        $response->assertRedirect(route('manage.games.questions.index', $game));
+
+        $questions = $game->questions()->where('type', 'audio')->get();
+        $this->assertCount(3, $questions);
+
+        foreach ($questions as $question) {
+            $this->assertEquals('audio', $question->type);
+            $this->assertNotEmpty($question->media_url);
+            $this->assertCount(4, $question->options);
+            $this->assertEquals(1, $question->options()->where('is_correct', true)->count());
+        }
+    }
 }

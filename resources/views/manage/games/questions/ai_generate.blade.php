@@ -41,7 +41,7 @@
                 {{-- Keyword Input --}}
                 <div class="flex flex-col gap-2">
                     <label class="font-display font-black text-black dark:text-white text-xs sm:text-sm uppercase tracking-wide">Topik / Bab Materi <span class="text-[#FB7185]">*</span></label>
-                    <input type="text" name="keyword" required placeholder="Contoh: Lagu Daerah Indonesia, Tata Surya, Pahlawan..." class="neo-input w-full rounded-xl p-3 sm:p-3.5 font-body text-sm bg-[#FEF9EF] dark:bg-slate-900 text-black dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500" autocomplete="off">
+                    <input type="text" name="keyword" required placeholder="Contoh: Tebak Lagu Taylor Swift, Musik Pop, Lagu Daerah, Tata Surya, Sejarah..." class="neo-input w-full rounded-xl p-3 sm:p-3.5 font-body text-sm bg-[#FEF9EF] dark:bg-slate-900 text-black dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500" autocomplete="off">
                 </div>
 
                 {{-- Tipe Soal yang Diinginkan --}}
@@ -73,7 +73,7 @@
                             <input type="radio" name="question_type" value="audio" class="sr-only peer">
                             <div class="p-3 sm:p-3.5 rounded-xl border-2 sm:border-3 border-black text-center peer-checked:!bg-[#A855F7] peer-checked:!text-white peer-checked:shadow-[3px_3px_0px_#000] bg-stone-100 dark:bg-slate-900 text-black dark:text-white font-display font-black text-xs uppercase flex flex-col items-center gap-1 sm:gap-1.5 transition h-full justify-center">
                                 <span class="text-xl sm:text-2xl">🎵</span>
-                                <span>Tebak Lagu</span>
+                                <span>Tebak Musik</span>
                             </div>
                         </label>
                         <label class="cursor-pointer col-span-2 lg:col-span-1">
@@ -84,6 +84,9 @@
                             </div>
                         </label>
                     </div>
+                    <p class="text-[11px] sm:text-xs font-mono text-stone-500 dark:text-slate-400 mt-1">
+                        💡 <strong>Tebak Musik:</strong> Mendukung artis global (misal: <em>Taylor Swift, Coldplay, K-Pop, OST Anime</em>), lagu pop, hingga lagu daerah. Audio potongan lagu dicari otomatis!
+                    </p>
                 </div>
 
                 {{-- Jumlah Soal --}}

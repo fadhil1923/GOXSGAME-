@@ -225,6 +225,79 @@ Tugasmu:
         return null;
     }
 
+    /**
+     * Cari potongan audio musik/lagu secara dinamis dari iTunes Search API & Deezer API (Global & Lokal).
+     */
+    private function searchAudioPreview(string $songTitle, ?string $artist = null, ?string $topicContext = null): ?string
+    {
+        $cleanTitle = trim(preg_replace('/[^\w\s\-\'\.,]/u', ' ', $songTitle));
+        $cleanArtist = $artist ? trim(preg_replace('/[^\w\s\-\'\.,]/u', ' ', $artist)) : null;
+
+        $queries = [];
+        if ($cleanArtist && $cleanTitle) {
+            $queries[] = "{$cleanArtist} {$cleanTitle}";
+        }
+        if ($cleanTitle) {
+            $queries[] = $cleanTitle;
+        }
+        if ($topicContext && $cleanTitle && stripos($cleanTitle, $topicContext) === false) {
+            $queries[] = "{$topicContext} {$cleanTitle}";
+        }
+
+        // 1. Coba iTunes Search API (Mendukung jutaan lagu global & Indonesia dengan 30s audio preview M4A/AAC)
+        foreach ($queries as $q) {
+            try {
+                $response = Http::timeout(5)
+                    ->withHeaders(['User-Agent' => 'GoxsgrowEdu/1.0 (edu@goxsgrow.test)'])
+                    ->get('https://itunes.apple.com/search', [
+                        'term' => $q,
+                        'entity' => 'song',
+                        'limit' => 1,
+                    ]);
+
+                if ($response->successful()) {
+                    $results = $response->json('results');
+                    if (! empty($results[0]['previewUrl'])) {
+                        return $results[0]['previewUrl'];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("iTunes audio search error for query '{$q}': ".$e->getMessage());
+            }
+        }
+
+        // 2. Coba Deezer Search API (Alternatif global MP3 preview)
+        foreach ($queries as $q) {
+            try {
+                $response = Http::timeout(5)
+                    ->withHeaders(['User-Agent' => 'GoxsgrowEdu/1.0 (edu@goxsgrow.test)'])
+                    ->get('https://api.deezer.com/search', [
+                        'q' => $q,
+                        'limit' => 1,
+                    ]);
+
+                if ($response->successful()) {
+                    $tracks = $response->json('data');
+                    if (! empty($tracks[0]['preview'])) {
+                        return $tracks[0]['preview'];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("Deezer audio search error for query '{$q}': ".$e->getMessage());
+            }
+        }
+
+        // 3. Cek katalog lagu daerah Indonesia jika judul cocok
+        $catalog = $this->getIndonesianSongCatalog();
+        foreach ($catalog as $title => $audioLink) {
+            if (stripos($cleanTitle, $title) !== false || ($topicContext && stripos($topicContext, $title) !== false)) {
+                return $audioLink;
+            }
+        }
+
+        return null;
+    }
+
     private function generateDummyQuestionsForTopic($topic, $count, $questionType = 'multiple_choice')
     {
         $dummy = [];
@@ -287,24 +360,64 @@ Tugasmu:
                     'options' => $options,
                 ];
             } elseif ($effectiveType === 'audio') {
-                $songIndex = ($i - 1) % count($songNames);
-                $correctSong = $songNames[$songIndex];
-                $audioUrl = $songs[$correctSong];
+                $isTaylorSwift = (stripos($topic, 'taylor') !== false || stripos($topic, 'swift') !== false);
+                $isPopGlobal = (stripos($topic, 'pop') !== false || stripos($topic, 'barat') !== false || stripos($topic, 'kpop') !== false || stripos($topic, 'bts') !== false || stripos($topic, 'anime') !== false);
 
-                $distractorPool = array_diff($songNames, [$correctSong]);
-                shuffle($distractorPool);
-                $distractors = array_slice($distractorPool, 0, 3);
+                if ($isTaylorSwift) {
+                    $artistName = 'Taylor Swift';
+                    $trackPool = [
+                        'Cruel Summer' => ['Blank Space', 'Anti-Hero', 'Cardigan'],
+                        'Blank Space' => ['Shake It Off', 'Style', 'Bad Blood'],
+                        'Anti-Hero' => ['Lavender Haze', 'Karma', 'Midnight Rain'],
+                        'Shake It Off' => ['22', 'We Are Never Ever Getting Back Together', 'Love Story'],
+                        'Love Story' => ['You Belong With Me', 'Fearless', 'Teardrops on My Guitar'],
+                        'Cardigan' => ['August', 'Betty', 'Exile'],
+                        'Style' => ['Wildest Dreams', 'Out of the Woods', 'Clean'],
+                    ];
+                    $titles = array_keys($trackPool);
+                    $correctSong = $titles[($i - 1) % count($titles)];
+                    $distractors = $trackPool[$correctSong];
+                    $questionText = 'Dengarkan cuplikan audio di atas! Lagu Taylor Swift apakah yang sedang diperdengarkan ini?';
+                } elseif ($isPopGlobal) {
+                    $artistName = null;
+                    $trackPool = [
+                        'Dynamite' => ['Butter', 'Permission to Dance', 'Boy With Luv'],
+                        'Viva La Vida' => ['Yellow', 'Fix You', 'Paradise'],
+                        'Shape of You' => ['Perfect', 'Bad Habits', 'Thinking Out Loud'],
+                        'As It Was' => ['Watermelon Sugar', 'Golden', 'Sign of the Times'],
+                        'Blinding Lights' => ['Save Your Tears', 'Starboy', 'The Hills'],
+                    ];
+                    $titles = array_keys($trackPool);
+                    $correctSong = $titles[($i - 1) % count($titles)];
+                    $distractors = $trackPool[$correctSong];
+                    $questionText = 'Dengarkan potongan musik di atas! Lagu populer apakah yang sedang diputar ini?';
+                } else {
+                    $artistName = null;
+                    $songIndex = ($i - 1) % count($songNames);
+                    $correctSong = $songNames[$songIndex];
+                    $distractorPool = array_diff($songNames, [$correctSong]);
+                    shuffle($distractorPool);
+                    $distractors = array_values(array_slice($distractorPool, 0, 3));
+                    $questionText = 'Dengarkan audio musik di atas! Lagu apakah yang sedang diperdengarkan ini?';
+                }
+
+                // Cari audio preview nyata dari iTunes / Deezer / Catalog
+                $audioUrl = $this->searchAudioPreview($correctSong, $artistName, $topic);
+                if (! $audioUrl) {
+                    $catalogValues = array_values($songs);
+                    $audioUrl = $catalogValues[($i - 1) % count($catalogValues)];
+                }
 
                 $options = [
                     ['text' => $correctSong, 'is_correct' => true],
-                    ['text' => $distractors[0] ?? 'Gundul Pacul', 'is_correct' => false],
-                    ['text' => $distractors[1] ?? 'Halo-Halo Bandung', 'is_correct' => false],
-                    ['text' => $distractors[2] ?? 'Manuk Dadali', 'is_correct' => false],
+                    ['text' => $distractors[0] ?? 'Lagu Pengecoh A', 'is_correct' => false],
+                    ['text' => $distractors[1] ?? 'Lagu Pengecoh B', 'is_correct' => false],
+                    ['text' => $distractors[2] ?? 'Lagu Pengecoh C', 'is_correct' => false],
                 ];
                 shuffle($options);
 
                 $dummy[] = [
-                    'question' => 'Dengarkan audio musik tradisional di atas! Lagu daerah apakah yang sedang diperdengarkan ini?',
+                    'question' => $questionText,
                     'type' => 'audio',
                     'media_url' => $audioUrl,
                     'options' => $options,
@@ -370,8 +483,8 @@ Tugasmu:
         $typeInstruction = match ($questionType) {
             'true_false' => "Semua soal WAJIB bertipe 'true_false' (Pernyataan Benar atau Salah). Setiap soal hanya memiliki 2 pilihan: 'BENAR' dan 'SALAH'. Kolom 'type' diisi 'true_false' dan 'media_url' bernilai null.",
             'image' => "Semua soal WAJIB bertipe 'image' (Tebak Gambar). Pertanyaan menanyakan objek/tokoh/tempat/hewan/tumbuhan/benda yang tampak pada gambar. Kolom 'type' WAJIB diisi 'image'. Berikan kolom 'correct_subject' yang berisi nama subjek gambar yang benar dan spesifik (contoh: 'Candi Borobudur', 'Komodo', 'Rumah Gadang', 'Ir. Soekarno', 'Angklung', 'Rafflesia arnoldii', 'Gunung Bromo', dll). Pilihan jawaban 4 opsi dengan 1 pilihan benar yang cocok dengan 'correct_subject'.",
-            'audio' => "Semua soal WAJIB bertipe 'audio' (Tebak Lagu Daerah / Suara Musik). Buat soal menebak lagu daerah dari daftar ini: [{$songListString}]. Kolom 'type' WAJIB diisi 'audio'. Kolom 'song_title' WAJIB diisi persis salah satu judul lagu dari daftar tersebut (contoh: 'Kicir-Kicir', 'Tokecang', 'Cublak-Cublak Suweng', 'Yamko Rambe Yamko', dll). Pertanyaan format: 'Dengarkan lagu di atas! Lagu daerah apakah ini?'. Salah satu pilihan jawaban WAJIB sama dengan judul di 'song_title' dan bernilai is_correct: true.",
-            'mixed' => "Buatkan kuis variasi campuran dari tipe 'multiple_choice', 'true_false' (2 opsi), 'image' (dengan 'correct_subject'), dan 'audio' (dengan 'song_title' dari [{$songListString}]). Tentukan kolom 'type' sesuai jenisnya masing-masing.",
+            'audio' => "Semua soal WAJIB bertipe 'audio' (Tebak Musik / Lagu). Soal WAJIB disesuaikan sepenuhnya dengan materi/topik: '{$keyword}' (bisa artis/penyanyi global seperti Taylor Swift, band pop, rock, K-Pop, anime OST, maupun lagu daerah Indonesia jika topik memintanya). Kolom 'type' WAJIB diisi 'audio'. Kolom 'song_title' WAJIB diisi dengan judul lagu spesifik yang dicari. Kolom 'artist' diisi dengan nama penyanyi/artis (contoh: 'Taylor Swift'). Format pertanyaan: 'Dengarkan potongan musik di atas! Lagu apakah yang sedang diputar ini?'. Salah satu pilihan jawaban (options) WAJIB sama dengan 'song_title' dan bernilai is_correct: true.",
+            'mixed' => "Buatkan kuis variasi campuran dari tipe 'multiple_choice', 'true_false' (2 opsi), 'image' (dengan 'correct_subject'), dan 'audio' (dengan 'song_title' dan 'artist' sesuai topik '{$keyword}'). Tentukan kolom 'type' sesuai jenisnya masing-masing.",
             default => "Semua soal bertipe 'multiple_choice' (Pilihan Ganda 4 opsi). Kolom 'type' diisi 'multiple_choice' dan 'media_url' bernilai null.",
         };
 
@@ -385,7 +498,8 @@ Hasil WAJIB HANYA berupa JSON murni dengan format array persis seperti ini:
         \"question\": \"Pertanyaan soal?\",
         \"type\": \"{$questionType}\",
         \"correct_subject\": \"Nama subjek objek gambar yang benar (hanya untuk tipe image, contoh: Candi Borobudur / Komodo / Ir. Soekarno)\",
-        \"song_title\": \"Judul lagu dari daftar lagu (hanya untuk tipe audio, contoh: Tokecang)\",
+        \"song_title\": \"Judul lagu yang dicari (hanya untuk tipe audio, contoh: Cruel Summer / Tokecang)\",
+        \"artist\": \"Nama penyanyi atau musisi (hanya untuk tipe audio, contoh: Taylor Swift)\",
         \"options\": [
             {\"text\": \"Jawaban benar\", \"is_correct\": true},
             {\"text\": \"Jawaban salah 1\", \"is_correct\": false},
@@ -396,12 +510,13 @@ Hasil WAJIB HANYA berupa JSON murni dengan format array persis seperti ini:
 ]";
 
         $candidateModels = [
+            'gemini-flash-latest',
             'gemini-3.5-flash-lite',
             'gemini-3.6-flash',
-            'gemini-flash-latest',
-            'gemini-3.1-flash-lite',
             'gemini-3.5-flash',
             'gemini-3.7-flash',
+            'gemini-3.8-flash',
+            'gemini-2.5-flash',
         ];
 
         $parsedData = null;
@@ -511,37 +626,46 @@ Hasil WAJIB HANYA berupa JSON murni dengan format array persis seperti ini:
                 }
             }
 
-            // Logika Media untuk Tipe Lagu (Tebak Lagu)
+            // Logika Media untuk Tipe Lagu (Tebak Lagu / Musik)
             if ($savedType === 'audio') {
                 if (empty($mediaUrl) || ! str_starts_with($mediaUrl, 'http')) {
-                    // Cari lagu yang cocok dari katalog
-                    $selectedAudio = null;
                     $songTitle = $item['song_title'] ?? '';
-
-                    foreach ($songCatalog as $title => $audioLink) {
-                        if (! empty($songTitle) && stripos($songTitle, $title) !== false) {
-                            $selectedAudio = $audioLink;
+                    $artist = $item['artist'] ?? null;
+                    $correctOptText = null;
+                    foreach ($item['options'] as $opt) {
+                        if (! empty($opt['is_correct'])) {
+                            $correctOptText = trim($opt['text'] ?? '');
                             break;
                         }
                     }
 
+                    // Prioritas 1: Cari preview audio online dari iTunes / Deezer
+                    $selectedAudio = $this->searchAudioPreview(
+                        $songTitle ?: ($correctOptText ?: $keyword),
+                        $artist,
+                        $keyword
+                    );
+
+                    // Prioritas 2: Jika belum ketemu, coba cari dengan nama judul dari opsi benar
+                    if (! $selectedAudio && $correctOptText && $correctOptText !== $songTitle) {
+                        $selectedAudio = $this->searchAudioPreview($correctOptText, $artist, $keyword);
+                    }
+
+                    // Prioritas 3: Cek kecocokan katalog lagu daerah lokal
                     if (! $selectedAudio) {
-                        // Cek dari pertanyaan atau opsi yang benar
                         foreach ($songCatalog as $title => $audioLink) {
-                            if (stripos($item['question'], $title) !== false) {
+                            if (! empty($songTitle) && stripos($songTitle, $title) !== false) {
                                 $selectedAudio = $audioLink;
                                 break;
                             }
-                            foreach ($item['options'] as $opt) {
-                                if (! empty($opt['is_correct']) && stripos($opt['text'] ?? '', $title) !== false) {
-                                    $selectedAudio = $audioLink;
-                                    break 2;
-                                }
+                            if ($correctOptText && stripos($correctOptText, $title) !== false) {
+                                $selectedAudio = $audioLink;
+                                break;
                             }
                         }
                     }
 
-                    // Fallback jika tidak ada judul yang cocok persis: pilih berurutan dari katalog
+                    // Fallback jika tidak ada audio online maupun lokal yang cocok
                     if (! $selectedAudio) {
                         $catalogValues = array_values($songCatalog);
                         $selectedAudio = $catalogValues[$itemIndex % count($catalogValues)];
