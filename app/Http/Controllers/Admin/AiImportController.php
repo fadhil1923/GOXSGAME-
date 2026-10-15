@@ -190,7 +190,7 @@ Tugasmu:
     }
 
     /**
-     * Cari foto/gambar berkualitas tinggi dan akurat dari Wikipedia / Wikimedia Commons.
+     * Cari foto/gambar berkualitas tinggi dan akurat dari Wikipedia / Wikimedia Commons (Global & Lokal).
      */
     private function searchWikipediaImage(string $query): ?string
     {
@@ -199,13 +199,26 @@ Tugasmu:
             return null;
         }
 
-        $langs = ['id', 'en'];
-        foreach ($langs as $lang) {
+        // Prioritas Wikipedia bahasa Inggris (paling lengkap untuk entitas global), Indonesia, dan Wikimedia Commons
+        $endpoints = [
+            'https://en.wikipedia.org/w/api.php',
+            'https://id.wikipedia.org/w/api.php',
+            'https://commons.wikimedia.org/w/api.php',
+        ];
+
+        foreach ($endpoints as $endpoint) {
             try {
-                $url = "https://{$lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=".urlencode($cleanQuery).'&gsrlimit=1&prop=pageimages&pithumbsize=800&format=json';
                 $response = Http::timeout(4)
                     ->withHeaders(['User-Agent' => 'GoxsgrowEdu/1.0 (edu@goxsgrow.test)'])
-                    ->get($url);
+                    ->get($endpoint, [
+                        'action' => 'query',
+                        'generator' => 'search',
+                        'gsrsearch' => $cleanQuery,
+                        'gsrlimit' => 1,
+                        'prop' => 'pageimages',
+                        'pithumbsize' => 800,
+                        'format' => 'json',
+                    ]);
 
                 if ($response->successful()) {
                     $pages = $response->json('query.pages');
@@ -218,7 +231,7 @@ Tugasmu:
                     }
                 }
             } catch (\Exception $e) {
-                Log::warning("Wikipedia image search error ({$lang}): ".$e->getMessage());
+                Log::warning("Wikipedia/Commons image search error ({$endpoint}): ".$e->getMessage());
             }
         }
 
@@ -304,36 +317,121 @@ Tugasmu:
         $songs = $this->getIndonesianSongCatalog();
         $songNames = array_keys($songs);
 
-        $imageExamples = [
+        $isTaylorSwift = (stripos($topic, 'taylor') !== false || stripos($topic, 'swift') !== false);
+        $isPopGlobal = (stripos($topic, 'pop') !== false || stripos($topic, 'barat') !== false || stripos($topic, 'kpop') !== false || stripos($topic, 'bts') !== false || stripos($topic, 'anime') !== false || stripos($topic, 'musik') !== false || stripos($topic, 'lagu') !== false);
+
+        // Pool gambar global jika topik Taylor Swift
+        $tsImagePool = [
             [
-                'question' => 'Gambar di atas menunjukkan kemegahan candi Buddha terbesar di dunia yang terletak di Magelang, Jawa Tengah. Apakah nama candi ini?',
-                'media_url' => 'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Pradaksina.jpg/960px-Pradaksina.jpg',
-                'correct' => 'Candi Borobudur',
-                'distractors' => ['Candi Prambanan', 'Candi Mendut', 'Candi Sewu'],
+                'subject' => 'Taylor Swift',
+                'question' => 'Perhatikan foto musisi wanita peraih 4 kali Grammy Album of the Year pada gambar di atas. Siapakah penyanyi ini?',
+                'correct' => 'Taylor Swift',
+                'distractors' => ['Katy Perry', 'Ariana Grande', 'Selena Gomez'],
             ],
             [
-                'question' => 'Perhatikan hewan endemik Indonesia pada gambar di atas. Apakah nama spesies kadal raksasa yang dilindungi ini?',
-                'media_url' => 'https://thumb.wikimedia.org/wikipedia/commons/thumb/4/44/Komodo_dragon_%28Varanus_komodoensis%29_4.jpg/960px-Komodo_dragon_%28Varanus_komodoensis%29_4.jpg',
-                'correct' => 'Komodo',
-                'distractors' => ['Biawak Pohon', 'Kadal Duri', 'Iguana Purba'],
+                'subject' => 'The Eras Tour',
+                'question' => 'Gambar di atas menampilkan panggung konser spektakuler dari tur musik berpendapatan tertinggi dalam sejarah. Apakah nama tur ini?',
+                'correct' => 'The Eras Tour',
+                'distractors' => ['Renaissance World Tour', 'The Formation World Tour', 'Chromatica Ball'],
             ],
             [
-                'question' => 'Gambar di atas menampilkan rumah adat tradisional Minangkabau dengan atap gonjong menyerupai tanduk kerbau. Rumah adat apakah ini?',
-                'media_url' => 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fd/Rumah_Gadang.jpg/960px-Rumah_Gadang.jpg',
-                'correct' => 'Rumah Gadang',
-                'distractors' => ['Rumah Joglo', 'Rumah Tongkonan', 'Rumah Honai'],
+                'subject' => '1989 (Taylor Swift album)',
+                'question' => 'Foto di atas berkaitan dengan album era pop fenomenal Taylor Swift yang memuat lagu hits "Shake It Off" dan "Blank Space". Album apakah ini?',
+                'correct' => '1989 (Taylor\'s Version)',
+                'distractors' => ['Reputation', 'Lover', 'Red'],
             ],
             [
-                'question' => 'Perhatikan alat musik tradisional dari bambu pada gambar di atas. Alat musik asal Jawa Barat ini dimainkan dengan cara digoyangkan, yaitu...',
-                'media_url' => 'https://upload.wikimedia.org/wikipedia/commons/8/87/Indonesianbamboomusicangklung.jpg',
-                'correct' => 'Angklung',
-                'distractors' => ['Kolintang', 'Sasando', 'Calung'],
+                'subject' => 'Grammy Award',
+                'question' => 'Piala bergengsi industri musik dunia pada gambar di atas telah dimenangkan Taylor Swift sebanyak 14 kali sepanjang kariernya. Trofi apakah ini?',
+                'correct' => 'Grammy Award',
+                'distractors' => ['Billboard Music Award', 'MTV Video Music Award', 'American Music Award'],
+            ],
+        ];
+
+        // Pool gambar global umum (landmark dunia, sains, karya seni)
+        $globalImagePool = [
+            [
+                'subject' => 'Eiffel Tower',
+                'question' => 'Perhatikan landmark megah dunia yang terletak di Paris, Prancis pada gambar di atas. Monumen apakah ini?',
+                'correct' => 'Menara Eiffel',
+                'distractors' => ['Menara Pisa', 'Big Ben', 'Empire State Building'],
             ],
             [
-                'question' => 'Gambar di atas menunjukkan bunga raksasa langka tanpa akar, tangkai, atau daun yang merupakan bunga endemik Sumatera. Bunga apakah ini?',
-                'media_url' => 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/Rafflesia_arnoldii%2C_Sumatra.jpg/960px-Rafflesia_arnoldii%2C_Sumatra.jpg',
-                'correct' => 'Rafflesia Arnoldii',
-                'distractors' => ['Bunga Bangkai', 'Kantong Semar', 'Anggrek Hitam'],
+                'subject' => 'Saturn',
+                'question' => 'Perhatikan planet dalam tata surya dengan sistem cincin es spektakuler pada gambar di atas. Planet apakah ini?',
+                'correct' => 'Planet Saturnus',
+                'distractors' => ['Planet Jupiter', 'Planet Uranus', 'Planet Neptunus'],
+            ],
+            [
+                'subject' => 'Mona Lisa',
+                'question' => 'Karya lukisan abad ke-16 mahakarya Leonardo da Vinci yang dipajang di Museum Louvre pada gambar di atas adalah...',
+                'correct' => 'Lukisan Mona Lisa',
+                'distractors' => ['The Starry Night', 'The Last Supper', 'The Scream'],
+            ],
+            [
+                'subject' => 'Colosseum',
+                'question' => 'Amfiteater batu kuno peninggalan Kekaisaran Romawi di Italia pada gambar di atas dikenal sebagai...',
+                'correct' => 'Colosseum Roma',
+                'distractors' => ['Parthenon Athena', 'Piramida Giza', 'Machu Picchu'],
+            ],
+            [
+                'subject' => 'Albert Einstein',
+                'question' => 'Fisikawan jenius penemu rumus E=mc² dan peraih Penghargaan Nobel Fisika pada foto di atas adalah...',
+                'correct' => 'Albert Einstein',
+                'distractors' => ['Isaac Newton', 'Nikola Tesla', 'Galileo Galilei'],
+            ],
+        ];
+
+        // Pool pertanyaan pilihan ganda Taylor Swift
+        $tsMcPool = [
+            [
+                'question' => 'Album studio Taylor Swift manakah yang berhasil memenangkan penghargaan Grammy untuk kategori Album of the Year pertama kalinya?',
+                'correct' => 'Fearless',
+                'distractors' => ['1989', 'Red', 'Folklore'],
+            ],
+            [
+                'question' => 'Lagu hits nomor 1 Billboard dari Taylor Swift yang memiliki lirik ikonik "Cause the players gonna play, play, play..." adalah...',
+                'correct' => 'Shake It Off',
+                'distractors' => ['Blank Space', 'Bad Blood', 'Style'],
+            ],
+            [
+                'question' => 'Berapa kali Taylor Swift berhasil memenangkan piala tertinggi Album of the Year di ajang Grammy Awards hingga tahun 2024?',
+                'correct' => '4 Kali',
+                'distractors' => ['2 Kali', '3 Kali', '5 Kali'],
+            ],
+            [
+                'question' => 'Lagu re-recording versi legendaris 10 menit berjudul "All Too Well" terdapat dalam album Taylor Swift mana?',
+                'correct' => 'Red (Taylor\'s Version)',
+                'distractors' => ['Fearless (Taylor\'s Version)', '1989 (Taylor\'s Version)', 'Speak Now (Taylor\'s Version)'],
+            ],
+            [
+                'question' => 'Apakah judul tur konser dunia Taylor Swift yang memecahkan rekor sebagai tur konser berpendapatan tertinggi dalam sejarah musik?',
+                'correct' => 'The Eras Tour',
+                'distractors' => ['The 1989 World Tour', 'Reputation Stadium Tour', 'The Red Tour'],
+            ],
+        ];
+
+        // Pool fakta benar/salah Taylor Swift
+        $tsTfPool = [
+            [
+                'question' => 'Taylor Swift adalah musisi pertama dalam sejarah Grammy yang memenangkan Album of the Year sebanyak 4 kali.',
+                'is_correct' => true,
+            ],
+            [
+                'question' => 'Film dokumenter konser "Taylor Swift: The Eras Tour" dinobatkan sebagai film konser terlaris sepanjang masa.',
+                'is_correct' => true,
+            ],
+            [
+                'question' => 'Album debut pertama Taylor Swift beraliran musik Heavy Metal dan dirilis pada tahun 2022.',
+                'is_correct' => false,
+            ],
+            [
+                'question' => 'Lagu hits "Cruel Summer" dan "Lover" berasal dari album studio ketujuh Taylor Swift yang berjudul "Lover".',
+                'is_correct' => true,
+            ],
+            [
+                'question' => 'Taylor Swift lahir di London, Inggris dan merilis album perdananya di benua Eropa.',
+                'is_correct' => false,
             ],
         ];
 
@@ -343,7 +441,17 @@ Tugasmu:
                 : $questionType;
 
             if ($effectiveType === 'image') {
-                $item = $imageExamples[($i - 1) % count($imageExamples)];
+                if ($isTaylorSwift) {
+                    $item = $tsImagePool[($i - 1) % count($tsImagePool)];
+                } else {
+                    $item = $globalImagePool[($i - 1) % count($globalImagePool)];
+                }
+
+                // Cari gambar nyata dari Wikipedia untuk subjek tersebut
+                $imageUrl = $this->searchWikipediaImage($item['subject']);
+                if (! $imageUrl) {
+                    $imageUrl = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80';
+                }
 
                 $options = [
                     ['text' => $item['correct'], 'is_correct' => true],
@@ -356,13 +464,10 @@ Tugasmu:
                 $dummy[] = [
                     'question' => $item['question'],
                     'type' => 'image',
-                    'media_url' => $item['media_url'],
+                    'media_url' => $imageUrl,
                     'options' => $options,
                 ];
             } elseif ($effectiveType === 'audio') {
-                $isTaylorSwift = (stripos($topic, 'taylor') !== false || stripos($topic, 'swift') !== false);
-                $isPopGlobal = (stripos($topic, 'pop') !== false || stripos($topic, 'barat') !== false || stripos($topic, 'kpop') !== false || stripos($topic, 'bts') !== false || stripos($topic, 'anime') !== false);
-
                 if ($isTaylorSwift) {
                     $artistName = 'Taylor Swift';
                     $trackPool = [
@@ -423,9 +528,17 @@ Tugasmu:
                     'options' => $options,
                 ];
             } elseif ($effectiveType === 'true_false') {
-                $isTrue = $i % 2 !== 0;
+                if ($isTaylorSwift) {
+                    $tfItem = $tsTfPool[($i - 1) % count($tsTfPool)];
+                    $questionText = $tfItem['question'];
+                    $isTrue = $tfItem['is_correct'];
+                } else {
+                    $isTrue = $i % 2 !== 0;
+                    $questionText = "Pernyataan nomor {$i} tentang materi '{$topic}' adalah fakta yang sah dan terverifikasi secara ilmiah.";
+                }
+
                 $dummy[] = [
-                    'question' => "Pernyataan nomor {$i} tentang materi '{$topic}' adalah fakta yang sah dan terverifikasi secara ilmiah.",
+                    'question' => $questionText,
                     'type' => 'true_false',
                     'media_url' => null,
                     'options' => [
@@ -434,16 +547,28 @@ Tugasmu:
                     ],
                 ];
             } else {
-                $options = [
-                    ['text' => "Jawaban Benar materi {$topic}", 'is_correct' => true],
-                    ['text' => "Pernyataan pengecoh materi {$topic} A", 'is_correct' => false],
-                    ['text' => "Pernyataan pengecoh materi {$topic} B", 'is_correct' => false],
-                    ['text' => "Pernyataan pengecoh materi {$topic} C", 'is_correct' => false],
-                ];
+                if ($isTaylorSwift) {
+                    $mcItem = $tsMcPool[($i - 1) % count($tsMcPool)];
+                    $options = [
+                        ['text' => $mcItem['correct'], 'is_correct' => true],
+                        ['text' => $mcItem['distractors'][0], 'is_correct' => false],
+                        ['text' => $mcItem['distractors'][1], 'is_correct' => false],
+                        ['text' => $mcItem['distractors'][2], 'is_correct' => false],
+                    ];
+                    $questionText = $mcItem['question'];
+                } else {
+                    $options = [
+                        ['text' => "Jawaban Benar materi {$topic}", 'is_correct' => true],
+                        ['text' => "Pernyataan pengecoh materi {$topic} A", 'is_correct' => false],
+                        ['text' => "Pernyataan pengecoh materi {$topic} B", 'is_correct' => false],
+                        ['text' => "Pernyataan pengecoh materi {$topic} C", 'is_correct' => false],
+                    ];
+                    $questionText = "Pertanyaan nomor {$i} mengenai pemahaman materi: {$topic}?";
+                }
                 shuffle($options);
 
                 $dummy[] = [
-                    'question' => "Pertanyaan nomor {$i} mengenai pemahaman materi: {$topic}?",
+                    'question' => $questionText,
                     'type' => 'multiple_choice',
                     'media_url' => null,
                     'options' => $options,
@@ -481,11 +606,11 @@ Tugasmu:
 
         // Instruksi tipe kuis spesifik untuk AI
         $typeInstruction = match ($questionType) {
-            'true_false' => "Semua soal WAJIB bertipe 'true_false' (Pernyataan Benar atau Salah). Setiap soal hanya memiliki 2 pilihan: 'BENAR' dan 'SALAH'. Kolom 'type' diisi 'true_false' dan 'media_url' bernilai null.",
-            'image' => "Semua soal WAJIB bertipe 'image' (Tebak Gambar). Pertanyaan menanyakan objek/tokoh/tempat/hewan/tumbuhan/benda yang tampak pada gambar. Kolom 'type' WAJIB diisi 'image'. Berikan kolom 'correct_subject' yang berisi nama subjek gambar yang benar dan spesifik (contoh: 'Candi Borobudur', 'Komodo', 'Rumah Gadang', 'Ir. Soekarno', 'Angklung', 'Rafflesia arnoldii', 'Gunung Bromo', dll). Pilihan jawaban 4 opsi dengan 1 pilihan benar yang cocok dengan 'correct_subject'.",
-            'audio' => "Semua soal WAJIB bertipe 'audio' (Tebak Musik / Lagu). Soal WAJIB disesuaikan sepenuhnya dengan materi/topik: '{$keyword}' (bisa artis/penyanyi global seperti Taylor Swift, band pop, rock, K-Pop, anime OST, maupun lagu daerah Indonesia jika topik memintanya). Kolom 'type' WAJIB diisi 'audio'. Kolom 'song_title' WAJIB diisi dengan judul lagu spesifik yang dicari. Kolom 'artist' diisi dengan nama penyanyi/artis (contoh: 'Taylor Swift'). Format pertanyaan: 'Dengarkan potongan musik di atas! Lagu apakah yang sedang diputar ini?'. Salah satu pilihan jawaban (options) WAJIB sama dengan 'song_title' dan bernilai is_correct: true.",
-            'mixed' => "Buatkan kuis variasi campuran dari tipe 'multiple_choice', 'true_false' (2 opsi), 'image' (dengan 'correct_subject'), dan 'audio' (dengan 'song_title' dan 'artist' sesuai topik '{$keyword}'). Tentukan kolom 'type' sesuai jenisnya masing-masing.",
-            default => "Semua soal bertipe 'multiple_choice' (Pilihan Ganda 4 opsi). Kolom 'type' diisi 'multiple_choice' dan 'media_url' bernilai null.",
+            'true_false' => "Semua soal WAJIB bertipe 'true_false' (Pernyataan Benar atau Salah). Sajikan pernyataan fakta menarik seputar topik: '{$keyword}' secara global/universal. Setiap soal hanya memiliki 2 pilihan: 'BENAR' dan 'SALAH'. Kolom 'type' diisi 'true_false' dan 'media_url' bernilai null.",
+            'image' => "Semua soal WAJIB bertipe 'image' (Tebak Gambar). Seluruh pertanyaan dan subjek gambar WAJIB disesuaikan sepenuhnya dengan materi/topik: '{$keyword}' secara GLOBAL/UNIVERSAL (bisa artis/penyanyi dunia seperti Taylor Swift, landmark dunia seperti Menara Eiffel/Colosseum, film, astronomi/sains, teknologi, tokoh sejarah dunia, flora/fauna dunia, atau apapun topik yang diminta). JANGAN membatasi ke budaya/daerah lokal Indonesia kecuali jika topik memang memintanya! Kolom 'type' WAJIB diisi 'image'. Kolom 'correct_subject' WAJIB diisi nama tokoh/objek/tempat/karya spesifik yang akan dicari fotonya secara global (contoh jika Taylor Swift: 'Taylor Swift' atau 'The Eras Tour'; jika Landmark: 'Menara Eiffel' atau 'Colosseum'; jika Sains: 'Planet Saturnus' atau 'Albert Einstein'). Pertanyaan format: 'Perhatikan gambar di atas! Siapakah/Apakah nama subjek pada gambar tersebut?'. Pilihan jawaban 4 opsi dengan 1 pilihan benar yang sama persis dengan 'correct_subject' dan is_correct: true.",
+            'audio' => "Semua soal WAJIB bertipe 'audio' (Tebak Musik / Lagu). Soal dan judul lagu WAJIB disesuaikan sepenuhnya dengan materi/topik: '{$keyword}' secara GLOBAL (bisa artis internasional seperti Taylor Swift, band pop, rock, K-Pop, soundtrack anime/film, musisi dunia, maupun lagu daerah Indonesia jika topik memintanya). Kolom 'type' WAJIB diisi 'audio'. Kolom 'song_title' WAJIB diisi dengan judul lagu spesifik yang dicari. Kolom 'artist' diisi dengan nama penyanyi/artis (contoh: 'Taylor Swift'). Format pertanyaan: 'Dengarkan potongan musik di atas! Lagu apakah yang sedang diputar ini?'. Salah satu pilihan jawaban (options) WAJIB sama dengan 'song_title' dan bernilai is_correct: true.",
+            'mixed' => "Buatkan kuis variasi campuran yang seimbang dari 4 jenis format: 'multiple_choice' (pilihan ganda), 'true_false' (benar/salah), 'image' (tebak gambar dengan 'correct_subject' spesifik), dan 'audio' (tebak potongan musik dengan 'song_title' dan 'artist'). SEMUA soal dari segala format tersebut WAJIB mengangkat topik yang sama: '{$keyword}' secara GLOBAL/UNIVERSAL (bukan lagu/budaya daerah kecuali jika topik memang memintanya). Tentukan kolom 'type' sesuai format masing-masing soal.",
+            default => "Semua soal bertipe 'multiple_choice' (Pilihan Ganda 4 opsi). Seluruh pertanyaan dan pilihan jawaban WAJIB mengangkat materi/topik: '{$keyword}' secara mendalam dan berwawasan luas/global. Kolom 'type' diisi 'multiple_choice' dan 'media_url' bernilai null.",
         };
 
         $prompt = "Kamu adalah pembuat kuis edukasi cerdas. Buatkan persis {$count} soal tentang materi/topik: '{$keyword}'.
@@ -495,9 +620,9 @@ Aturan jenis kuis:
 Hasil WAJIB HANYA berupa JSON murni dengan format array persis seperti ini:
 [
     {
-        \"question\": \"Pertanyaan soal?\",
-        \"type\": \"{$questionType}\",
-        \"correct_subject\": \"Nama subjek objek gambar yang benar (hanya untuk tipe image, contoh: Candi Borobudur / Komodo / Ir. Soekarno)\",
+        \"question\": \"Pertanyaan kuis?\",
+        \"type\": \"multiple_choice / true_false / image / audio\",
+        \"correct_subject\": \"Nama subjek objek gambar yang spesifik untuk dicari fotonya secara global (hanya untuk tipe image, contoh: Taylor Swift / Menara Eiffel / Planet Saturnus)\",
         \"song_title\": \"Judul lagu yang dicari (hanya untuk tipe audio, contoh: Cruel Summer / Tokecang)\",
         \"artist\": \"Nama penyanyi atau musisi (hanya untuk tipe audio, contoh: Taylor Swift)\",
         \"options\": [

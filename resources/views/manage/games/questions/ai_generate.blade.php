@@ -85,7 +85,7 @@
                         </label>
                     </div>
                     <p class="text-[11px] sm:text-xs font-mono text-stone-500 dark:text-slate-400 mt-1">
-                        💡 <strong>Tebak Musik:</strong> Mendukung artis global (misal: <em>Taylor Swift, Coldplay, K-Pop, OST Anime</em>), lagu pop, hingga lagu daerah. Audio potongan lagu dicari otomatis!
+                        💡 <strong>Kuis Global Otomatis:</strong> Semua format (Pilihan Ganda, Tebak Gambar, Tebak Musik, dan Campuran) otomatis mengambil materi global sesuai topikmu (misal: <em>Taylor Swift, Landmark Dunia, Tata Surya, Sains, Pop Culture</em>). Gambar & audio dicari otomatis!
                     </p>
                 </div>
 
